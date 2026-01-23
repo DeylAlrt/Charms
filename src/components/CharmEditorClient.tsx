@@ -535,10 +535,10 @@ export default function CharmEditorClient({ charmFiles }: Props) {
               </div>
             </div>
 
-            <div className="w-full overflow-hidden">
+            <div className="w-full overflow-x-auto sm:overflow-hidden">
               <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${maxSlots}, 1fr)`, alignItems: 'center' }}>
                 {Array.from({ length: maxSlots }, (_, i) => (
-                  <div key={i} className="p-0">
+                  <div key={i} className="p-0 min-w-[60px]">
                     <DroppableSlot index={i}>
                       {bracelet[i] && <DraggableCharm charm={bracelet[i]} compact={true} />}
                     </DroppableSlot>

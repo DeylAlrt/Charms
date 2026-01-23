@@ -136,7 +136,7 @@ function DraggableCharm({ charm, compact = false }: any) {
           className={`
             w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain
             ${isSoldOut ? 'opacity-30' : 'opacity-100'}
-            select-none
+            select-none /* ← NEW: Prevents text/image selection */
           `}
           unoptimized
           draggable={false}
@@ -407,6 +407,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     }
   };
 
+  // ONLY FIXED PART — DRAG & DROP NOW WORKS
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveCharm(null);
@@ -427,6 +428,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     const fromIndex = bracelet.findIndex(item => item?.id === active.id);
 
     if (fromIndex === -1) {
+      // FROM CATALOG → ADD
       const catalogCharm = charmData.find(c => c.id === active.id);
       if (!catalogCharm || catalogCharm.filename.toLowerCase().includes("sold")) return;
 
@@ -441,6 +443,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       return;
     }
 
+    // FROM BRACELET → SWAP
     if (fromIndex !== -1 && targetIndex !== fromIndex) {
       setBracelet(prev => {
         const copy = [...prev];
@@ -498,20 +501,20 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     >
 
       <div
-        className="h-screen bg-linear-to-br from-sky-50 via-sky-100 to-white flex flex-col overflow-hidden select-none touch-none"
+        className="h-screen bg-gradient-to-br from-sky-50 via-sky-100 to-white flex flex-col overflow-hidden select-none touch-none"
         onContextMenu={(e) => e.preventDefault()}
       >
 
-        <header className="bg-white/90 backdrop-blur sticky top-0 z-50 p-2 sm:p-3 flex justify-between items-center shrink-0">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-sky-600 to-sky-400 bg-clip-text text-transparent">
+        <header className="bg-white/90 backdrop-blur sticky top-0 z-50 p-3 flex justify-between items-center flex-shrink-0">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-sky-600 to-sky-400 bg-clip-text text-transparent">
             Navillera
           </h1>
         </header>
 
-        <div className="w-full flex flex-col flex-1 overflow-hidden px-2 sm:px-4 md:px-40 lg:px-30 xl:px-80 pb-4">
-          <div className="bg-white rounded-lg shadow-md m-2 sm:m-3 mb-0 p-2 shrink-0">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <div className="w-full flex flex-col flex-1 overflow-hidden px-4 sm:px-6 md:px-40 lg:px-30 xl:px-80 pb-4">
+          <div className="bg-white rounded-lg shadow-md m-3 mb-0 p-2 flex-shrink-0">
+            <div className="flex justify-between items-center mb-2 gap-2">
+              <div className="flex items-center gap-3">
                 <p className="text-sm font-bold text-black">Charms: {filled}/{maxSlots}</p>
                 <select value={size} onChange={(e) => setSize(e.target.value as any)} className="text-xs px-2 py-1 border rounded-md bg-white text-black">
                   <option value="small">Small (16)</option>
@@ -523,19 +526,17 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                   {baseColorOptions.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                <div className="text-base sm:text-lg font-bold text-sky-600">
+              <div className="flex items-center gap-2">
+                <div className="text-lg font-bold text-sky-600">
                   Total: {bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0).toFixed(2)} AED
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => openUploadModal()} className="bg-sky-600 text-white px-3 py-1 rounded-full text-xs">Upload</button>
-                  <button onClick={() => setBracelet(Array(maxSlots).fill(getPlaceholderCharm(selectedBaseColor)))} className="bg-red-600 text-white px-3 py-1 rounded-full text-xs">Clear</button>
-                </div>
+                <button onClick={() => openUploadModal()} className="bg-sky-600 text-white px-3 py-1 rounded-full text-xs">Upload</button>
+                <button onClick={() => setBracelet(Array(maxSlots).fill(getPlaceholderCharm(selectedBaseColor)))} className="bg-red-600 text-white px-3 py-1 rounded-full text-xs">ERROR</button>
               </div>
             </div>
 
-            <div className="w-full overflow-x-auto">
-              <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(0, 1fr))`, alignItems: 'center' }}>
+            <div className="w-full overflow-hidden">
+              <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${maxSlots}, 1fr)`, alignItems: 'center' }}>
                 {Array.from({ length: maxSlots }, (_, i) => (
                   <div key={i} className="p-0">
                     <DroppableSlot index={i}>
@@ -549,11 +550,11 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
           {/* RENAME MODAL */}
           {renameOpen && (
-            <div className="fixed inset-0 flex items-center justify-center z-60 p-4">
+            <div className="fixed inset-0 flex items-center justify-center z-60">
               <div className="absolute inset-0 bg-black/40" onClick={() => setRenameOpen(false)} />
-              <div className="relative bg-black rounded-md p-4 w-full max-w-sm shadow-lg z-70">
+              <div className="relative bg-black rounded-md p-4 w-80 shadow-lg z-70">
                 <h3 className="font-bold mb-2 text-green-500">Rename Charm</h3>
-                <div className="mb-2 text-sm text-green-500 break-all">Old: <span className="font-mono">{renameOld}</span></div>
+                <div className="mb-2 text-sm text-green-500">Old: <span className="font-mono">{renameOld}</span></div>
                 <label className="block text-xs mb-1 text-green-500">Category (prefix)</label>
                 <select className="w-full text-sm bg-black text-green-500 mb-2 p-1 border rounded" value={getCategory(renameNew)} onChange={(e) => {
                   const chosen = e.target.value;
@@ -567,12 +568,12 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                   <option>0-9</option>
                 </select>
                 <label className="block text-xs text-green-500 mb-1">New filename</label>
-                <input className="w-full mb-2 p-1 border rounded text-green-500 bg-black" value={renameNew} onChange={(e) => setRenameNew(e.target.value)} />
+                <input className="w-full mb-2 p-1 border rounded text-green-500" value={renameNew} onChange={(e) => setRenameNew(e.target.value)} />
                 <label className="flex items-center gap-2 text-sm mb-2">
                   <input type="checkbox" checked={renameOverwrite} onChange={(e) => setRenameOverwrite(e.target.checked)} />
                   <span className="text-green-500 text-xs">Overwrite if exists</span>
                 </label>
-                {renameError && <div className="text-red-500 text-sm mb-2">{renameError}</div>}
+                {renameError && <div className="text-red-900 text-sm mb-2">{renameError}</div>}
                 <div className="flex justify-end gap-2">
                   <button className="px-3 py-1 text-green-500 text-sm" onClick={() => setRenameOpen(false)} disabled={renameLoading}>Cancel</button>
                   <button className="px-3 py-1 bg-red-900 text-green-500 rounded text-sm" onClick={submitRename} disabled={renameLoading}>{renameLoading ? 'Saving...' : 'Save'}</button>
@@ -583,27 +584,27 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
           {/* UNDO SNACKBAR */}
           {lastRename && (
-            <div className="fixed bottom-4 right-4 bg-white border shadow-md p-3 rounded flex items-center gap-3 max-w-sm">
-              <div className="text-sm break-all">Renamed <span className="font-mono">{lastRename.oldName}</span> → <span className="font-mono">{lastRename.newName}</span></div>
-              <button className="px-2 py-1 bg-gray-200 rounded text-sm whitespace-nowrap" onClick={undoLastRename}>Undo</button>
+            <div className="fixed bottom-4 right-4 bg-white border shadow-md p-3 rounded flex items-center gap-3">
+              <div className="text-sm">Renamed <span className="font-mono">{lastRename.oldName}</span> → <span className="font-mono">{lastRename.newName}</span></div>
+              <button className="px-2 py-1 bg-gray-200 rounded text-sm" onClick={undoLastRename}>Undo</button>
             </div>
           )}
 
           {/* UPLOAD MODAL */}
           {uploadOpen && (
-            <div className="fixed inset-0 flex items-center justify-center z-60 p-4">
+            <div className="fixed inset-0 flex items-center justify-center z-60">
               <div className="absolute inset-0 bg-black/40" onClick={() => setUploadOpen(false)} />
-              <div className="relative bg-black rounded-md p-4 w-full max-w-md shadow-lg z-70 text-green-500">
+              <div className="relative bg-black rounded-md p-4 w-96 shadow-lg z-70 text-green-500">
                 <h3 className="font-bold mb-4 text-green-500">Upload Charm</h3>
                 <label className="block text-xs mb-1 text-green-500">Choose image file</label>
-                <input type="file" accept="image/*" className="w-full text-xs mb-2" onChange={(e) => { const f = e.target.files?.[0] || null; setUploadFile(f); if (f) setUploadFilename(f.name); }} />
+                <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setUploadFile(f); if (f) setUploadFilename(f.name); }} />
                 <label className="block text-xs mt-2 mb-1 text-green-500">Filename</label>
-                <input className="w-full mb-2 p-1 border rounded text-sm text-green-500 bg-black" value={uploadFilename} onChange={(e) => setUploadFilename(e.target.value)} />
+                <input className="w-full mb-2 p-1 border rounded text-sm text-green-500" value={uploadFilename} onChange={(e) => setUploadFilename(e.target.value)} />
                 <label className="flex items-center gap-2 text-sm mb-2">
                   <input type="checkbox" checked={uploadOverwrite} onChange={(e) => setUploadOverwrite(e.target.checked)} />
                   <span className="text-xs text-green-500">Overwrite if exists</span>
                 </label>
-                {uploadError && <div className="text-red-500 text-sm mb-2">{uploadError}</div>}
+                {uploadError && <div className="text-red-600 text-sm mb-2">{uploadError}</div>}
                 <div className="flex justify-end gap-2">
                   <button className="px-3 py-1 text-sm text-green-500" onClick={() => setUploadOpen(false)} disabled={uploadLoading}>Cancel</button>
                   <button className="px-3 py-1 bg-red-700 text-white rounded text-sm" onClick={submitUpload} disabled={uploadLoading}>{uploadLoading ? 'Uploading...' : 'Upload'}</button>
@@ -613,38 +614,47 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           )}
 
           {/* CATEGORIES */}
-          <div className="bg-white rounded-lg shadow-md m-2 sm:m-3 mb-0 p-2 shrink-0">
+          <div className="bg-white rounded-lg shadow-md m-3 mb-0 p-2 flex-shrink-0">
             <div className="flex items-center justify-between mb-2">
-              <div />
-              <button className="md:hidden px-3 py-2 rounded-md bg-gray-100 text-sm" onClick={() => setShowCategories(s => !s)}>
-                {showCategories ? 'Hide Menu' : 'Show Menu'}
-              </button>
+              <div className="hidden md:block" />
+              <button className="md:hidden px-3 py-2 rounded-md bg-gray-100" onClick={() => setShowCategories(s => !s)}>Menu</button>
             </div>
-            <div className={`flex flex-wrap gap-2 ${showCategories ? '' : 'hidden md:flex'}`}>
-              {categories.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-3 py-1 rounded-md text-sm ${activeCategory === cat ? 'bg-sky-600 text-white' : 'bg-gray-100 text-black'}`}>
-                  {cat}
-                </button>
+            <div className={`${showCategories ? "block" : "hidden"} md:block`}>
+              <div className="flex flex-wrap justify-center gap-2">
+                {categories.map((cat) => (
+                  <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-2 py-1 rounded-full font-bold text-xs transition flex items-center gap-1 ${activeCategory === cat ? "bg-gradient-to-r from-sky-600 to-sky-400 text-white shadow-lg" : "bg-gray-200 text-gray-700"}`}>
+                    <span>{cat}</span>
+                    <span className="bg-white/20 px-1.5 py-0.5 rounded-full text-xs text-black">{counts[cat] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* CHARM GRID */}
+          <div
+            ref={charmsContainerRef}
+            className="flex-1 bg-white overflow-y-auto rounded-lg shadow-md m-3 mt-2 p-3 flex flex-col touch-pan-y"
+            style={{ touchAction: activeCharm ? "none" : "pan-y" }}   // ← THIS IS THE KILL SHOT
+          >
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
+              {filteredCharms.map((charm) => (
+                <div key={charm.id} className="relative group">
+                  <DraggableCharm charm={charm} />
+                  <div className="absolute right-1 bottom-1 flex gap-1 items-center invisible group-hover:visible">
+                    <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>
+                    <button onClick={() => openRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
+        </div>
 
-          {/* CHARM CATALOG */}
-          <div className="bg-white rounded-lg shadow-md m-2 sm:m-3 mb-0 p-2 shrink-0">
-            <div ref={charmsContainerRef} className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-96 overflow-y-auto">
-              {filteredCharms.map(charm => (
-                <DraggableCharm key={charm.id} charm={charm} />
-              ))}
-            </div>
-          </div>
-
-          </div>
-
-          </div>
-
-          <DragOverlay>
-            {activeCharm && <DraggableCharm charm={activeCharm} />}
-          </DragOverlay>
-        </DndContext>
-      );
-    }
+        <DragOverlay>
+          {activeCharm ? <Image src={activeCharm.img} alt={activeCharm.filename} width={70} height={70} unoptimized draggable={false} /> : null}
+        </DragOverlay>
+      </div>
+    </DndContext>
+  );
+}

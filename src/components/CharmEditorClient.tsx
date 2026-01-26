@@ -290,7 +290,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
   useEffect(() => {
     if (!availableBaseColors.includes(selectedBaseColor)) {
-      setSelectedBaseColor(availableBaseColors[0] || "Silver");
+      setSelectedBaseColor((availableBaseColors[0] || "Silver") as BaseColor);
     }
   }, [availableBaseColors]);
 
@@ -300,6 +300,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     }
   }, [activeCategory]);
 
+  const getDeliveryFee = (place: string): number => {
+    if (place.includes('Mall of the Emirates Metro') || place.includes('DMCC Metro')) return 5;
+    if (place.includes('Union Metro') || place.includes('Burjuman Metro')) return 10;
+    if (place.includes('Dubai: 20 AED')) return 20;
+    if (place.includes('Other Emirates: 25 AED')) return 25;
+    return 0; // Free delivery
+  };
+
   const handleCheckout = () => {
     setCartOpen(false);
     setCheckoutFormOpen(true);
@@ -307,79 +315,120 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
       alert('Please fill in all fields.');
       return;
     }
+
+    const element = braceletRef.current;
+    if (!element) {
+      alert('Unable to capture bracelet design. Please try again.');
+      return;
+    }
+
+    const subtotal = bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0);
+    const deliveryFee = getDeliveryFee(meetupPlace);
+    const total = subtotal + deliveryFee;
+
+    let imageUrl = '';
+
+    // Capture screenshot and upload to ImgBB (more reliable than Imgur)
     try {
-      console.log('Starting order submission...');
-      const total = bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0);
-      const serviceId = 'service_335t5bn'; // EmailJS service ID
-      const templateId = 'template_dpoi8cn'; // Replace with your order confirmation template ID
+      console.log('📸 Capturing bracelet screenshot...');
       
-      console.log('Sending test email without image...');
-      
-      // TEMPORARY: Send without image first to test
-      const result = await emailjs.send(serviceId, templateId, {
-        to_email: 'Navilleracharmstudio@gmail.com',
-        customer_name: customerName,
-        phone: phoneNumber,
-        pickup_time: pickupTime,
-        meetup_place: meetupPlace,
-        delivery_date: deliveryDate,
-        total: total.toFixed(2),
-        image: 'Test image placeholder - will be added back after testing'
+      element.classList.add('screenshot-safe-zone');
+
+      const canvas = await html2canvas(element, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.querySelector('.screenshot-safe-zone') as HTMLElement;
+          if (clonedElement) {
+            clonedElement.style.padding = "20px";
+            clonedElement.style.color = '#000000';
+          }
+        }
       });
+
+      element.classList.remove('screenshot-safe-zone');
+
+      console.log('📤 Uploading to ImgBB...');
+
+      // Convert canvas to base64
+      const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+
+      // Upload to ImgBB (free, no account needed)
+      const formData = new FormData();
+      formData.append('image', base64Image);
+
+      const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=2eee6166704f95f17adbf9f02853aebc', {
+        method: 'POST',
+        body: formData
+      });
+
+      const imgbbData = await imgbbResponse.json();
+
+      if (imgbbData.success && imgbbData.data && imgbbData.data.url) {
+        imageUrl = imgbbData.data.url;
+        console.log('✅ Image uploaded to ImgBB:', imageUrl);
+      } else {
+        console.error('❌ ImgBB upload failed:', imgbbData);
+        throw new Error('Image upload failed');
+      }
+
+    } catch (error) {
+      element.classList.remove('screenshot-safe-zone');
+      console.error('❌ Screenshot/upload failed:', error);
       
-      console.log('Test email sent successfully:', result);
-      alert('Test email sent successfully! Now testing with image...');
+      alert('Failed to upload bracelet image. Please check your internet connection and try again.');
+      return; // Stop - don't send email without image
+    }
+
+    // Only send email if we have a valid image URL
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+      alert('Image upload failed. Please try again.');
+      return;
+    }
+
+    // Send email with image URL
+    try {
+      console.log('📧 Sending order email...');
       
-      // Now try with image
-      console.log('Capturing screenshot...');
-      const canvas = await html2canvas(braceletRef.current!);
-      const dataUrl = canvas.toDataURL('image/png');
-      
-      console.log('Sending email with image...');
-      const resultWithImage = await emailjs.send(serviceId, templateId, {
+      const emailParams = {
         to_email: 'Navilleracharmstudio@gmail.com',
-        image: dataUrl,
         customer_name: customerName,
         phone: phoneNumber,
         pickup_time: pickupTime,
         meetup_place: meetupPlace,
         delivery_date: deliveryDate,
+        bracelet_image_url: imageUrl,
+        subtotal: subtotal.toFixed(2),
+        delivery_fee: deliveryFee.toFixed(2),
         total: total.toFixed(2)
-      });
+      };
+
+      await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
       
-      console.log('Email with image sent successfully:', resultWithImage);
-      alert('Order submitted successfully! We will contact you soon.');
+      console.log('✅ Order sent successfully!');
+      alert('Order submitted successfully! Check your email for confirmation.');
       setCheckoutFormOpen(false);
+      
       // Reset form
       setCustomerName('');
       setPhoneNumber('');
       setPickupTime('');
       setMeetupPlace('');
       setDeliveryDate('');
+      
     } catch (error: any) {
-      console.error('Error submitting order:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        text: error?.text,
-        status: error?.status,
-        name: error?.name
-      });
-      
-      let errorMessage = 'Error submitting order. Please try again.';
-      if (error?.text) {
-        errorMessage += ` Details: ${error.text}`;
-      } else if (error?.message) {
-        errorMessage += ` Details: ${error.message}`;
-      }
-      
-      alert(errorMessage);
+      console.error('❌ Email failed:', error);
+      alert('Email sending failed: ' + (error?.text || error?.message || 'Unknown error'));
     }
   };
-
   let filteredCharms = activeCategory === "All" ? charmData : charmData.filter((c) => c.category === activeCategory);
 
   if (activeCategory === "A-Z" || activeCategory === "All") {
@@ -930,9 +979,18 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                 <div>
                   <label className="block text-sm font-semibold text-black mb-2">Phone Number</label>
                   <input
-                    type="tel"
+                    type="text" 
+                    inputMode="numeric"
                     value={phoneNumber}
-                    onChange={e => setPhoneNumber(e.target.value)}
+                    onChange={(e) => {
+
+                      const onlyNums = e.target.value.replace(/[^0-9]/g, '');
+                      
+                      if (onlyNums.length <= 15) {
+                        setPhoneNumber(onlyNums);
+                      }
+                    }}
+                    placeholder="971XXXXXXXXX"
                     className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
                     required
                   />
@@ -986,6 +1044,23 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                     className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
                     required
                   />
+                </div>
+                <div className="border-t border-sky-200 pt-4 mt-4">
+                  <h3 className="text-lg font-semibold text-black mb-3">Order Summary</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-black">
+                      <span>Subtotal:</span>
+                      <span>{bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0).toFixed(2)} AED</span>
+                    </div>
+                    <div className="flex justify-between text-black">
+                      <span>Delivery Fee:</span>
+                      <span>{getDeliveryFee(meetupPlace).toFixed(2)} AED</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-lg border-t border-sky-200 pt-2 text-black">
+                      <span>Total:</span>
+                      <span>{(bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0) + getDeliveryFee(meetupPlace)).toFixed(2)} AED</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setCheckoutFormOpen(false)} className="flex-1 bg-gray-400 hover:bg-gray-500 text-black px-4 py-3 rounded-lg transition text-lg">

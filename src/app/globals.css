@@ -24,3 +24,33 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* FORCE RGB COLORS FOR SCREENSHOT COMPATIBILITY */
+* {
+  color-interpolation: sRGB !important;
+  color-rendering: optimizeSpeed !important;
+}
+
+/* Fallback for Next.js 15 default background */
+:root {
+  --background: rgb(255, 255, 255);
+  --foreground: rgb(0, 0, 0);
+}
+
+/* This forces the browser to convert all modern colors to standard RGB */
+/* It acts as a shield for older libraries like html2canvas */
+@media screen {
+  :root {
+    color-interpolation: sRGB !important;
+  }
+}
+
+.screenshot-safe-zone * {
+  color: #000 !important;
+  background-image: none !important;
+  background-color: #ffffff !important; /* <--- ADD THIS */
+  border-color: #d1d5db !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  appearance: none !important;        /* <--- ADD THIS */
+}

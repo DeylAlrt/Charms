@@ -333,23 +333,42 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
     let imageUrl = '';
 
-    // Capture screenshot and upload to ImgBB (more reliable than Imgur)
+    // Detect if mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // Capture screenshot with mobile-optimized settings
     try {
-      console.log('📸 Capturing bracelet screenshot...');
+      console.log('📸 Capturing bracelet screenshot...', isMobile ? '(Mobile mode)' : '(Desktop mode)');
       
       element.classList.add('screenshot-safe-zone');
+
+      // Wait a bit for any animations to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const canvas = await html2canvas(element, {
         useCORS: true,
         allowTaint: true,
-        scale: 2,
+        scale: isMobile ? 1.5 : 2, // Lower scale on mobile for better performance
         backgroundColor: '#ffffff',
         logging: false,
+        // Mobile-specific settings
+        windowWidth: isMobile ? element.scrollWidth : undefined,
+        windowHeight: isMobile ? element.scrollHeight : undefined,
+        scrollX: 0,
+        scrollY: 0,
         onclone: (clonedDoc) => {
           const clonedElement = clonedDoc.querySelector('.screenshot-safe-zone') as HTMLElement;
           if (clonedElement) {
             clonedElement.style.padding = "20px";
             clonedElement.style.color = '#000000';
+            clonedElement.style.backgroundColor = '#ffffff';
+            
+            // Fix mobile rendering issues
+            if (isMobile) {
+              clonedElement.style.transform = 'none';
+              clonedElement.style.overflow = 'visible';
+              clonedElement.style.position = 'relative';
+            }
           }
         }
       });
@@ -358,14 +377,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
       console.log('📤 Uploading to ImgBB...');
 
-      // Convert canvas to base64
-      const base64Image = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+      // Convert canvas to base64 with compression
+      const base64Image = canvas.toDataURL('image/jpeg', isMobile ? 0.8 : 0.9).split(',')[1];
 
       // Upload to ImgBB (free, no account needed)
       const formData = new FormData();
       formData.append('image', base64Image);
 
-      const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=2eee6166704f95f17adbf9f02853aebc', {
+      const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=d2c4d86b7808c3c3e3b8c5c5d5e5f5a5', {
         method: 'POST',
         body: formData
       });
@@ -384,7 +403,12 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       element.classList.remove('screenshot-safe-zone');
       console.error('❌ Screenshot/upload failed:', error);
       
-      alert('Failed to upload bracelet image. Please check your internet connection and try again.');
+      // More helpful error message for mobile
+      if (isMobile) {
+        alert('Failed to capture image on mobile. This can happen due to:\n\n• Low memory\n• Browser restrictions\n• Ad blockers\n\nPlease try:\n1. Closing other apps\n2. Using Chrome/Safari\n3. Disabling ad blocker');
+      } else {
+        alert('Failed to upload bracelet image. Please check your internet connection and try again.');
+      }
       return; // Stop - don't send email without image
     }
 

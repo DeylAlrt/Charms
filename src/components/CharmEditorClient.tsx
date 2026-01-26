@@ -14,12 +14,14 @@ import {
 import { useState, useRef, useEffect } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import Image from "next/image";
+import html2canvas from 'html2canvas';
+import emailjs from '@emailjs/browser';
 
 type Props = {
   charmFiles: string[];
 };
 
-// SMART AUTO-PRICING — NO NEED TO LIST EVERY CHARM
+// SMART AUTO-PRICING
 const getPrice = (filename: string): number => {
   const lower = filename.toLowerCase();
 
@@ -190,7 +192,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       img: `/charms/${file}`,
       filename: file,
       category: getCategory(file),
-      displayName: file.replace(/\.[^.]+$/, "").replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim(),
+      displayName: file.replace(/\.[^.]+$/, "").replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').replace(/\s*\(\d+\)\s*$/, '').trim(),
       catalogItem: true,
     };
     return base;
@@ -246,7 +248,18 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeCharm, setActiveCharm] = useState<any>(null);
   const [showCategories, setShowCategories] = useState(true);
+  const [ownerMode, setOwnerMode] = useState(false);
+  const [colorStatuses, setColorStatuses] = useState<Record<string, boolean>>({});
+  const availableBaseColors = Object.keys(colorStatuses).filter(c => colorStatuses[c]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const braceletRef = useRef<HTMLDivElement>(null);
   const charmsContainerRef = useRef<HTMLDivElement | null>(null);
+  const [checkoutFormOpen, setCheckoutFormOpen] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [pickupTime, setPickupTime] = useState('');
+  const [meetupPlace, setMeetupPlace] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -261,10 +274,111 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   );
 
   useEffect(() => {
+    fetch('/api/base-colors')
+      .then(r => r.json())
+      .then(setColorStatuses)
+      .catch(() => {
+        const defaultStatuses: Record<string, boolean> = {};
+        baseColorOptions.forEach(c => defaultStatuses[c] = true);
+        setColorStatuses(defaultStatuses);
+      });
+  }, []);
+
+  useEffect(() => {
+    emailjs.init('-2tCjwFJUnT97N93w'); // EmailJS Public Key
+  }, []);
+
+  useEffect(() => {
+    if (!availableBaseColors.includes(selectedBaseColor)) {
+      setSelectedBaseColor(availableBaseColors[0] || "Silver");
+    }
+  }, [availableBaseColors]);
+
+  useEffect(() => {
     if (charmsContainerRef.current) {
       charmsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [activeCategory]);
+
+  const handleCheckout = () => {
+    setCartOpen(false);
+    setCheckoutFormOpen(true);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
+      alert('Please fill in all fields.');
+      return;
+    }
+    try {
+      console.log('Starting order submission...');
+      const total = bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0);
+      const serviceId = 'service_335t5bn'; // EmailJS service ID
+      const templateId = 'template_dpoi8cn'; // Replace with your order confirmation template ID
+      
+      console.log('Sending test email without image...');
+      
+      // TEMPORARY: Send without image first to test
+      const result = await emailjs.send(serviceId, templateId, {
+        to_email: 'Navilleracharmstudio@gmail.com',
+        customer_name: customerName,
+        phone: phoneNumber,
+        pickup_time: pickupTime,
+        meetup_place: meetupPlace,
+        delivery_date: deliveryDate,
+        total: total.toFixed(2),
+        image: 'Test image placeholder - will be added back after testing'
+      });
+      
+      console.log('Test email sent successfully:', result);
+      alert('Test email sent successfully! Now testing with image...');
+      
+      // Now try with image
+      console.log('Capturing screenshot...');
+      const canvas = await html2canvas(braceletRef.current!);
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      console.log('Sending email with image...');
+      const resultWithImage = await emailjs.send(serviceId, templateId, {
+        to_email: 'Navilleracharmstudio@gmail.com',
+        image: dataUrl,
+        customer_name: customerName,
+        phone: phoneNumber,
+        pickup_time: pickupTime,
+        meetup_place: meetupPlace,
+        delivery_date: deliveryDate,
+        total: total.toFixed(2)
+      });
+      
+      console.log('Email with image sent successfully:', resultWithImage);
+      alert('Order submitted successfully! We will contact you soon.');
+      setCheckoutFormOpen(false);
+      // Reset form
+      setCustomerName('');
+      setPhoneNumber('');
+      setPickupTime('');
+      setMeetupPlace('');
+      setDeliveryDate('');
+    } catch (error: any) {
+      console.error('Error submitting order:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        text: error?.text,
+        status: error?.status,
+        name: error?.name
+      });
+      
+      let errorMessage = 'Error submitting order. Please try again.';
+      if (error?.text) {
+        errorMessage += ` Details: ${error.text}`;
+      } else if (error?.message) {
+        errorMessage += ` Details: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    }
+  };
 
   let filteredCharms = activeCategory === "All" ? charmData : charmData.filter((c) => c.category === activeCategory);
 
@@ -407,6 +521,27 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     }
   };
 
+  const toggleColorStatus = async (color: string) => {
+    const currentStatus = colorStatuses[color] ?? true;
+    const newStatus = !currentStatus;
+    setColorStatuses(prev => ({ ...prev, [color]: newStatus }));
+    try {
+      await fetch('/api/base-colors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ color, soldOut: !newStatus }),
+      });
+    } catch (err) {
+      // Revert on error
+      setColorStatuses(prev => ({ ...prev, [color]: currentStatus }));
+      alert('Failed to update color status');
+    }
+  };
+
+  const removeFromCart = (id: string) => {
+    setBracelet(prev => prev.map(item => item?.id === id ? getPlaceholderCharm(selectedBaseColor) : item));
+  };
+
   // ONLY FIXED PART — DRAG & DROP NOW WORKS
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -511,9 +646,9 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           </h1>
         </header>
 
-        <div className="w-full flex flex-col flex-1 overflow-hidden px-4 sm:px-6 md:px-40 lg:px-30 xl:px-80 pb-4">
-          <div className="bg-white rounded-lg shadow-md m-3 mb-0 p-2 flex-shrink-0">
-            <div className="flex justify-between items-center mb-2 gap-2">
+        <div className="w-full flex flex-col flex-1 overflow-hidden px-4 sm:px-6 md:px-40 lg:px-30 xl:px-24 pb-4">
+          <div ref={braceletRef} className="bg-white rounded-lg shadow-md m-1 mb-0 p-2 flex-shrink-0">
+            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center mb-2 gap-2">
               <div className="flex items-center gap-3">
                 <p className="text-sm font-bold text-black">Charms: {filled}/{maxSlots}</p>
                 <select value={size} onChange={(e) => setSize(e.target.value as any)} className="text-xs px-2 py-1 border rounded-md bg-white text-black">
@@ -523,15 +658,17 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                   <option value="xl">XL (22)</option>
                 </select>
                 <select value={selectedBaseColor} onChange={(e) => setSelectedBaseColor(e.target.value as BaseColor)} className="text-xs px-2 py-1 border rounded-md bg-white text-black capitalize">
-                  {baseColorOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  {availableBaseColors.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                <button onClick={() => { const pass = window.prompt('Enter password:'); if (pass === 'Navillera1101') setOwnerMode(true); else alert('Wrong password'); }} style={{opacity: 0, width: '24px', height: '24px', border: 'none', background: 'none'}}></button>
               </div>
               <div className="flex items-center gap-2">
-                <div className="text-lg font-bold text-sky-600">
+                <div className="text-sm md:text-lg font-bold text-sky-600">
                   Total: {bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0).toFixed(2)} AED
                 </div>
-                <button onClick={() => openUploadModal()} className="bg-sky-600 text-white px-3 py-1 rounded-full text-xs">Upload</button>
-                <button onClick={() => setBracelet(Array(maxSlots).fill(getPlaceholderCharm(selectedBaseColor)))} className="bg-red-600 text-white px-3 py-1 rounded-full text-xs">ERROR</button>
+                {ownerMode && <button onClick={() => openUploadModal()} className="bg-sky-600 text-white px-3 py-1 rounded-full text-xs">Upload</button>}
+                <button onClick={() => setCartOpen(true)} className="bg-green-600 text-white px-3 py-1 rounded-full text-xs">Cart</button>
+                <button onClick={() => setBracelet(Array(maxSlots).fill(getPlaceholderCharm(selectedBaseColor)))} className="bg-red-600 text-white px-3 py-1 rounded-full text-xs">Clear</button>
               </div>
             </div>
 
@@ -617,7 +754,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           <div className="bg-white rounded-lg shadow-md m-3 mb-0 p-2 flex-shrink-0">
             <div className="flex items-center justify-between mb-2">
               <div className="hidden md:block" />
-              <button className="md:hidden px-3 py-2 rounded-md bg-gray-100" onClick={() => setShowCategories(s => !s)}>Menu</button>
+              <button className="md:hidden px-3 py-2 rounded-md bg-gray-100" onClick={() => setShowCategories(s => !s)}>
+                <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="20" viewBox="0 0 48 48">
+                  <linearGradient id="EIPc0qTNCX0EujYwtxKaXa_MmupZtPbnw66_gr1" x1="12.066" x2="34.891" y1=".066" y2="22.891" gradientUnits="userSpaceOnUse"><stop offset=".237" stopColor="#3bc9f3"></stop><stop offset=".85" stopColor="#1591d8"></stop></linearGradient><path fill="url(#EIPc0qTNCX0EujYwtxKaXa_MmupZtPbnw66_gr1)" d="M43,15H5c-1.1,0-2-0.9-2-2v-2c0-1.1,0.9-2,2-2h38c1.1,0,2,0.9,2,2v2C45,14.1,44.1,15,43,15z"></path><linearGradient id="EIPc0qTNCX0EujYwtxKaXb_MmupZtPbnw66_gr2" x1="12.066" x2="34.891" y1="12.066" y2="34.891" gradientUnits="userSpaceOnUse"><stop offset=".237" stopColor="#3bc9f3"></stop><stop offset=".85" stopColor="#1591d8"></stop></linearGradient><path fill="url(#EIPc0qTNCX0EujYwtxKaXb_MmupZtPbnw66_gr2)" d="M43,27H5c-1.1,0-2-0.9-2-2v-2c0-1.1,0.9-2,2-2h38c1.1,0,2,0.9,2,2v2C45,26.1,44.1,27,43,27z"></path><linearGradient id="EIPc0qTNCX0EujYwtxKaXc_MmupZtPbnw66_gr3" x1="12.066" x2="34.891" y1="24.066" y2="46.891" gradientUnits="userSpaceOnUse"><stop offset=".237" stopColor="#3bc9f3"></stop><stop offset=".85" stopColor="#1591d8"></stop></linearGradient><path fill="url(#EIPc0qTNCX0EujYwtxKaXc_MmupZtPbnw66_gr3)" d="M43,39H5c-1.1,0-2-0.9-2-2v-2c0-1.1,0.9-2,2-2h38c1.1,0,2,0.9,2,2v2C45,38.1,44.1,39,43,39z"></path>
+                </svg>
+
+            
+
+              </button>
             </div>
             <div className={`${showCategories ? "block" : "hidden"} md:block`}>
               <div className="flex flex-wrap justify-center gap-2">
@@ -631,25 +775,230 @@ export default function CharmEditorClient({ charmFiles }: Props) {
             </div>
           </div>
 
+          {ownerMode && (
+            <div className="bg-white rounded-lg shadow-md m-3 mb-0 p-2 flex-shrink-0">
+              <h3 className="text-sm text-black font-bold mb-2">Manage Base Colors</h3>
+              <div className="flex flex-wrap gap-4">
+                {baseColorOptions.map(c => (
+                  <label key={c} className="flex items-center gap-1 text-sm text-black">
+                    <input
+                      type="checkbox"
+                      checked={colorStatuses[c] ?? true}
+                      onChange={() => toggleColorStatus(c)}
+                    />
+                    {c}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* CHARM GRID */}
           <div
             ref={charmsContainerRef}
             className="flex-1 bg-white overflow-y-auto rounded-lg shadow-md m-3 mt-2 p-3 flex flex-col touch-pan-y"
-            style={{ touchAction: activeCharm ? "none" : "pan-y" }}   // ← THIS IS THE KILL SHOT
+            style={{ touchAction: activeCharm ? "none" : "pan-y" }}
           >
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
               {filteredCharms.map((charm) => (
                 <div key={charm.id} className="relative group">
                   <DraggableCharm charm={charm} />
                   <div className="absolute right-1 bottom-1 flex gap-1 items-center invisible group-hover:visible">
-                    <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>
-                    <button onClick={() => openRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>
+                    {ownerMode && <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>}
+                    {ownerMode && <button onClick={() => openRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>}
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
+
+        {/* CART MODAL */}
+        {cartOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setCartOpen(false)} />
+            <div className="relative bg-sky-50 rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto shadow-lg border border-sky-200">
+              <h2 className="text-2xl font-bold mb-4 text-black text-center">My Cart</h2>
+              <div className="space-y-3 mb-6">
+                {(() => {
+                  const cartItems: Record<string, { item: any; count: number }> = {};
+                  bracelet.forEach(item => {
+                    if (item) {
+                      const key = item.filename;
+                      if (cartItems[key]) {
+                        cartItems[key].count++;
+                      } else {
+                        cartItems[key] = { item, count: 1 };
+                      }
+                    }
+                  });
+                  return Object.values(cartItems).map(({ item, count }) => (
+                    <div key={item.filename} className="flex items-center gap-4 p-4 bg-white rounded-lg shadow-sm border border-sky-100">
+                      <Image src={item.img} alt={item.filename} width={60} height={60} className="rounded" unoptimized />
+                      <div className="flex-1">
+                        <p className="font-semibold text-black text-base break-words">{item.displayName}</p>
+                        <p className="text-sm text-black">{(getPrice(item.filename) * count).toFixed(2)} AED</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            // Decrease quantity
+                            const index = bracelet.findIndex(b => b?.filename === item.filename);
+                            if (index !== -1) {
+                              setBracelet(prev => prev.map((b, i) => i === index ? getPlaceholderCharm(selectedBaseColor) : b));
+                            }
+                          }}
+                          className="w-8 h-8 bg-gray-200 hover:bg-gray-300 text-black rounded-full flex items-center justify-center text-lg"
+                        >
+                          -
+                        </button>
+                        <span className="text-black font-semibold">{count}</span>
+                        <button
+                          onClick={() => {
+                            // Increase quantity
+                            const emptyIndex = bracelet.findIndex(b => !b || b.isPlaceholder);
+                            if (emptyIndex !== -1) {
+                              setBracelet(prev => {
+                                const copy = [...prev];
+                                copy[emptyIndex] = { ...item, id: `added-${Date.now()}-${Math.random()}` };
+                                return copy;
+                              });
+                            }
+                          }}
+                          className="w-8 h-8 bg-gray-200 hover:bg-gray-300 text-black rounded-full flex items-center justify-center text-lg"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {!item.isPlaceholder && (
+                        <button onClick={() => {
+                          // Remove all
+                          setBracelet(prev => prev.map(b => b?.filename === item.filename ? getPlaceholderCharm(selectedBaseColor) : b));
+                        }} className="bg-red-500 hover:bg-red-600 text-white p-2 rounded transition">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6H5H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ));
+                })()}
+              </div>
+              <div className="border-t border-sky-200 pt-4 sticky bottom-0 bg-sky-50">
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-black mb-2">Discount Code</label>
+                  <input
+                    type="text"
+                    placeholder="Enter discount code"
+                    className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
+                  />
+                </div>
+                <div className="text-xl font-bold mb-4 text-black">
+                  Total: {bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0).toFixed(2)} AED
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setCartOpen(false)} className="flex-1 bg-gray-400 hover:bg-gray-500 text-black px-4 py-3 rounded-lg transition text-lg">
+                    Back
+                  </button>
+                  <button onClick={handleCheckout} className="flex-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-lg transition text-lg font-semibold">
+                    Check Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CHECKOUT FORM MODAL */}
+        {checkoutFormOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setCheckoutFormOpen(false)} />
+            <div className="relative bg-sky-50 rounded-lg p-6 w-96 max-h-[80vh] overflow-y-auto shadow-lg border border-sky-200">
+              <h2 className="text-2xl font-bold mb-4 text-black text-center">Complete Your Order</h2>
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={e => setCustomerName(e.target.value)}
+                    className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={e => setPhoneNumber(e.target.value)}
+                    className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Pick Up Time</label>
+                  <select
+                    value={pickupTime}
+                    onChange={e => setPickupTime(e.target.value)}
+                    className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
+                    required
+                  >
+                    <option value="">Select time</option>
+                    <option value="Weekdays: 6PM - 8PM">Weekdays: 6PM - 8PM</option>
+                    <option value="Weekends: 3PM - 8PM">Weekends: 3PM - 8PM</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Place of Meet Up</label>
+                  <select
+                    value={meetupPlace}
+                    onChange={e => setMeetupPlace(e.target.value)}
+                    className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
+                    required
+                  >
+                    <option value="">Select location</option>
+                    <optgroup label="Free Delivery">
+                      <option value="Dubai Internet City Metro">Dubai Internet City Metro</option>
+                      <option value="Dubai Knowledge Park (Tuesday at 5:30 PM)">Dubai Knowledge Park (Tuesday at 5:30 PM)</option>
+                    </optgroup>
+                    <optgroup label="5 AED Delivery fee">
+                      <option value="Mall of the Emirates Metro">Mall of the Emirates Metro</option>
+                      <option value="DMCC Metro">DMCC Metro</option>
+                    </optgroup>
+                    <optgroup label="10 AED Delivery fee">
+                      <option value="Union Metro">Union Metro</option>
+                      <option value="Burjuman Metro">Burjuman Metro</option>
+                    </optgroup>
+                    <optgroup label="Home Delivery">
+                      <option value="Dubai: 20 AED">Dubai: 20 AED</option>
+                      <option value="Other Emirates: 25 AED">Other Emirates: 25 AED</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-black mb-2">Date of Delivery</label>
+                  <input
+                    type="date"
+                    value={deliveryDate}
+                    onChange={e => setDeliveryDate(e.target.value)}
+                    className="w-full p-2 border border-sky-200 rounded-lg bg-white text-black"
+                    required
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setCheckoutFormOpen(false)} className="flex-1 bg-gray-400 hover:bg-gray-500 text-black px-4 py-3 rounded-lg transition text-lg">
+                    Back
+                  </button>
+                  <button type="submit" className="flex-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-lg transition text-lg font-semibold">
+                    Submit Order
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         <DragOverlay>
           {activeCharm ? <Image src={activeCharm.img} alt={activeCharm.filename} width={70} height={70} unoptimized draggable={false} /> : null}

@@ -316,10 +316,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🔵 Form submitted');
+    
     if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
       alert('Please fill in all fields.');
       return;
     }
+
+    console.log('🔵 Validation passed');
 
     const element = braceletRef.current;
     if (!element) {
@@ -331,96 +335,110 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     const deliveryFee = getDeliveryFee(meetupPlace);
     const total = subtotal + deliveryFee;
 
-    let imageUrl = '';
+    console.log('🔵 Totals calculated:', { subtotal, deliveryFee, total });
 
     // Detect if mobile
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    console.log('🔵 Device type:', isMobile ? 'Mobile' : 'Desktop');
 
-    // Capture screenshot with mobile-optimized settings
-    try {
-      console.log('📸 Capturing bracelet screenshot...', isMobile ? '(Mobile mode)' : '(Desktop mode)');
+    let imageUrl = '';
+
+    // On mobile, ask user if they want to skip image
+    if (isMobile) {
+      const skipImage = confirm('📱 Mobile detected!\n\nCapturing images on mobile can be slow or fail.\n\nClick OK to try with image\nClick CANCEL to send order without image');
       
-      element.classList.add('screenshot-safe-zone');
+      if (skipImage) {
+        console.log('🔵 User chose to skip image on mobile');
+        imageUrl = 'https://via.placeholder.com/600x100/0ea5e9/ffffff?text=Order+submitted+from+mobile+-+no+image';
+      }
+    }
 
-      // Wait a bit for any animations to complete
-      await new Promise(resolve => setTimeout(resolve, 300));
+    // Try to capture image if not skipped
+    if (!imageUrl) {
+      try {
+        console.log('📸 Starting screenshot capture...');
+        
+        element.classList.add('screenshot-safe-zone');
 
-      const canvas = await html2canvas(element, {
-        useCORS: true,
-        allowTaint: true,
-        scale: isMobile ? 1.5 : 2, // Lower scale on mobile for better performance
-        backgroundColor: '#ffffff',
-        logging: false,
-        // Mobile-specific settings
-        windowWidth: isMobile ? element.scrollWidth : undefined,
-        windowHeight: isMobile ? element.scrollHeight : undefined,
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.querySelector('.screenshot-safe-zone') as HTMLElement;
-          if (clonedElement) {
-            clonedElement.style.padding = "20px";
-            clonedElement.style.color = '#000000';
-            clonedElement.style.backgroundColor = '#ffffff';
-            
-            // Fix mobile rendering issues
-            if (isMobile) {
-              clonedElement.style.transform = 'none';
-              clonedElement.style.overflow = 'visible';
-              clonedElement.style.position = 'relative';
+        // Wait for render
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('🔵 Waited for render');
+
+        console.log('🔵 Calling html2canvas...');
+        const canvas = await html2canvas(element, {
+          useCORS: true,
+          allowTaint: true,
+          scale: isMobile ? 1 : 2,
+          backgroundColor: '#ffffff',
+          logging: true, // Enable logging to see what's happening
+          windowWidth: isMobile ? element.scrollWidth : undefined,
+          windowHeight: isMobile ? element.scrollHeight : undefined,
+          onclone: (clonedDoc) => {
+            console.log('🔵 html2canvas onclone called');
+            const clonedElement = clonedDoc.querySelector('.screenshot-safe-zone') as HTMLElement;
+            if (clonedElement) {
+              clonedElement.style.padding = "20px";
+              clonedElement.style.color = '#000000';
+              clonedElement.style.backgroundColor = '#ffffff';
             }
           }
+        });
+
+        console.log('✅ html2canvas completed, canvas size:', canvas.width, 'x', canvas.height);
+        element.classList.remove('screenshot-safe-zone');
+
+        console.log('🔵 Converting to base64...');
+        const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+        console.log('🔵 Base64 length:', base64Image.length);
+
+        console.log('📤 Uploading to ImgBB...');
+        const formData = new FormData();
+        formData.append('image', base64Image);
+
+        const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=d2c4d86b7808c3c3e3b8c5c5d5e5f5a5', {
+          method: 'POST',
+          body: formData
+        });
+
+        console.log('🔵 ImgBB response status:', imgbbResponse.status);
+        const imgbbData = await imgbbResponse.json();
+        console.log('🔵 ImgBB response:', imgbbData);
+
+        if (imgbbData.success && imgbbData.data && imgbbData.data.url) {
+          imageUrl = imgbbData.data.url;
+          console.log('✅ Image uploaded successfully:', imageUrl);
+        } else {
+          throw new Error('ImgBB upload failed: ' + JSON.stringify(imgbbData));
         }
-      });
 
-      element.classList.remove('screenshot-safe-zone');
-
-      console.log('📤 Uploading to ImgBB...');
-
-      // Convert canvas to base64 with compression
-      const base64Image = canvas.toDataURL('image/jpeg', isMobile ? 0.8 : 0.9).split(',')[1];
-
-      // Upload to ImgBB (free, no account needed)
-      const formData = new FormData();
-      formData.append('image', base64Image);
-
-      const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=d2c4d86b7808c3c3e3b8c5c5d5e5f5a5', {
-        method: 'POST',
-        body: formData
-      });
-
-      const imgbbData = await imgbbResponse.json();
-
-      if (imgbbData.success && imgbbData.data && imgbbData.data.url) {
-        imageUrl = imgbbData.data.url;
-        console.log('✅ Image uploaded to ImgBB:', imageUrl);
-      } else {
-        console.error('❌ ImgBB upload failed:', imgbbData);
-        throw new Error('Image upload failed');
+      } catch (error) {
+        element.classList.remove('screenshot-safe-zone');
+        console.error('❌ Screenshot/upload error:', error);
+        console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
+        console.error('Error message:', error instanceof Error ? error.message : String(error));
+        
+        // On mobile, offer to continue without image
+        if (isMobile) {
+          const continueWithout = confirm('Image capture failed on mobile.\n\nDo you want to submit order WITHOUT image?\n\nOK = Submit without image\nCANCEL = Try again');
+          
+          if (continueWithout) {
+            imageUrl = 'https://via.placeholder.com/600x100/dc2626/ffffff?text=Image+capture+failed+-+order+details+in+email';
+            console.log('🔵 User chose to continue without image');
+          } else {
+            console.log('🔵 User cancelled');
+            return;
+          }
+        } else {
+          alert('Image capture failed. Please try again.');
+          return;
+        }
       }
-
-    } catch (error) {
-      element.classList.remove('screenshot-safe-zone');
-      console.error('❌ Screenshot/upload failed:', error);
-      
-      // More helpful error message for mobile
-      if (isMobile) {
-        alert('Failed to capture image on mobile. This can happen due to:\n\n• Low memory\n• Browser restrictions\n• Ad blockers\n\nPlease try:\n1. Closing other apps\n2. Using Chrome/Safari\n3. Disabling ad blocker');
-      } else {
-        alert('Failed to upload bracelet image. Please check your internet connection and try again.');
-      }
-      return; // Stop - don't send email without image
     }
 
-    // Only send email if we have a valid image URL
-    if (!imageUrl || !imageUrl.startsWith('http')) {
-      alert('Image upload failed. Please try again.');
-      return;
-    }
-
-    // Send email with image URL
+    // Send email
     try {
-      console.log('📧 Sending order email...');
+      console.log('📧 Preparing to send email...');
+      console.log('🔵 Image URL:', imageUrl);
       
       const emailParams = {
         to_email: 'Navilleracharmstudio@gmail.com',
@@ -435,10 +453,13 @@ export default function CharmEditorClient({ charmFiles }: Props) {
         total: total.toFixed(2)
       };
 
+      console.log('🔵 Email params prepared');
+      console.log('🔵 Calling emailjs.send...');
+
       await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
       
-      console.log('✅ Order sent successfully!');
-      alert('Order submitted successfully! Check your email for confirmation.');
+      console.log('✅ Email sent successfully!');
+      alert('✅ Order submitted successfully! Check your email for confirmation.');
       setCheckoutFormOpen(false);
       
       // Reset form
@@ -449,8 +470,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       setDeliveryDate('');
       
     } catch (error: any) {
-      console.error('❌ Email failed:', error);
-      alert('Email sending failed: ' + (error?.text || error?.message || 'Unknown error'));
+      console.error('❌ Email sending failed:', error);
+      console.error('Error details:', {
+        status: error?.status,
+        text: error?.text,
+        message: error?.message,
+        name: error?.name
+      });
+      alert('❌ Email sending failed: ' + (error?.text || error?.message || 'Unknown error. Please try again.'));
     }
   };
   let filteredCharms = activeCategory === "All" ? charmData : charmData.filter((c) => c.category === activeCategory);

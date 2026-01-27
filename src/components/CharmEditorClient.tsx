@@ -358,31 +358,49 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     };
 
     // Add URL for each charm position (1-22)
+    const textLayoutLines: string[] = [];
+    
     for (let i = 0; i < 22; i++) {
       const item = bracelet[i];
       let imageUrl = '';
+      let charmName = '';
       
       if (i < maxSlots) {
         if (!item || item.isPlaceholder) {
           // Empty slot = show plain charm of selected base color
           imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
+          charmName = `${selectedBaseColor} Plain`;
+          textLayoutLines.push(`[${i + 1}] ${selectedBaseColor} Plain Charm`);
         } else {
           // Has a charm = show that charm's image
           imageUrl = baseUrl + item.img;
+          charmName = item.filename.replace(/\.(png|jpg|jpeg)$/i, '');
+          textLayoutLines.push(`[${i + 1}] ${charmName}`);
         }
       } else {
         // Beyond bracelet size = blank/placeholder
         imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
+        charmName = 'Empty';
       }
       
       emailParams[`charm_${i + 1}_url`] = imageUrl;
+      emailParams[`charm_${i + 1}_name`] = charmName;
     }
+    
+    // Add text layout
+    emailParams.text_layout = textLayoutLines.join('\n');
 
     console.log('✅ Charm URLs prepared. Sample:', {
       position_1: emailParams.charm_1_url,
       position_2: emailParams.charm_2_url,
       position_3: emailParams.charm_3_url
     });
+
+    // DEBUG: Show all URLs being sent
+    console.log('📸 ALL CHARM URLS BEING SENT:');
+    for (let i = 1; i <= 22; i++) {
+      console.log(`Position ${i}: ${emailParams[`charm_${i}_url`]}`);
+    }
 
     // Send email - NO IMAGE UPLOAD, JUST SENDING URLS!
     try {

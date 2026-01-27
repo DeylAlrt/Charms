@@ -326,122 +326,153 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     setCheckoutFormOpen(true);
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleFormSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  console.log('✅ Form submitted');
+  
+  if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
+    alert('Please fill in all fields.');
+    return;
+  }
+
+  console.log('✅ Validation passed');
+
+  const element = braceletRef.current;
+  if (!element) {
+    alert('Unable to capture bracelet design. Please try again.');
+    return;
+  }
+
+  const subtotal = bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0);
+  const deliveryFee = getDeliveryFee(meetupPlace);
+  const total = subtotal + deliveryFee;
+
+  console.log('✅ Totals calculated:', { subtotal, deliveryFee, total });
+
+  // Prepare charms list as string
+  const charmsList = bracelet
+    .filter(item => item && !item.isPlaceholder)
+    .map(item => item.displayName)
+    .join(', ');
+
+  // Get your website base URL
+  const baseUrl = window.location.origin;
+  
+  console.log('✅ Base URL:', baseUrl);
+
+  // Prepare email parameters
+  const emailParams: any = {
+    to_email: 'Navilleracharmstudio@gmail.com',
+    customer_name: customerName,
+    phone: phoneNumber,
+    pickup_time: pickupTime,
+    meetup_place: meetupPlace,
+    delivery_date: deliveryDate,
+    bracelet_size: `${maxSlots} charms`,
+    base_color: selectedBaseColor,
+    subtotal: subtotal.toFixed(2),
+    delivery_fee: deliveryFee.toFixed(2),
+    total: total.toFixed(2)
+  };
+
+  // Add URL for each charm position (1-22)
+  const textLayoutLines: string[] = [];
+  
+  for (let i = 0; i < 22; i++) {
+    const item = bracelet[i];
+    let imageUrl = '';
+    let charmName = '';
     
-    console.log('✅ Form submitted');
-    
-    if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
-      alert('Please fill in all fields.');
-      return;
-    }
-
-    console.log('✅ Validation passed');
-
-    const element = braceletRef.current;
-    if (!element) {
-      alert('Unable to capture bracelet design. Please try again.');
-      return;
-    }
-
-    const subtotal = bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0);
-    const deliveryFee = getDeliveryFee(meetupPlace);
-    const total = subtotal + deliveryFee;
-
-    console.log('✅ Totals calculated:', { subtotal, deliveryFee, total });
-
-    // Get your website base URL (where your charm images are hosted)
-    const baseUrl = window.location.origin; // e.g., https://yoursite.vercel.app
-    
-    console.log('✅ Base URL:', baseUrl);
-
-    // Prepare email parameters
-    const emailParams: any = {
-      to_email: 'Navilleracharmstudio@gmail.com',
-      customer_name: customerName,
-      phone: phoneNumber,
-      pickup_time: pickupTime,
-      meetup_place: meetupPlace,
-      delivery_date: deliveryDate,
-      bracelet_size: `${maxSlots} charms`,
-      base_color: selectedBaseColor,
-      subtotal: subtotal.toFixed(2),
-      delivery_fee: deliveryFee.toFixed(2),
-      total: total.toFixed(2)
-    };
-
-    // Add URL for each charm position (1-22)
-    const textLayoutLines: string[] = [];
-    
-    for (let i = 0; i < 22; i++) {
-      const item = bracelet[i];
-      let imageUrl = '';
-      let charmName = '';
-      
-      if (i < maxSlots) {
-        if (!item || item.isPlaceholder) {
-          // Empty slot = show plain charm of selected base color
-          imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
-          charmName = `${selectedBaseColor} Plain`;
-          textLayoutLines.push(`[${i + 1}] ${selectedBaseColor} Plain Charm`);
-        } else {
-          // Has a charm = show that charm's image
-          imageUrl = baseUrl + item.img;
-          charmName = item.filename.replace(/\.(png|jpg|jpeg)$/i, '');
-          textLayoutLines.push(`[${i + 1}] ${charmName}`);
-        }
-      } else {
-        // Beyond bracelet size = blank/placeholder
+    if (i < maxSlots) {
+      if (!item || item.isPlaceholder) {
         imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
-        charmName = 'Empty';
+        charmName = `${selectedBaseColor} Plain`;
+        textLayoutLines.push(`[${i + 1}] ${selectedBaseColor} Plain Charm`);
+      } else {
+        imageUrl = baseUrl + item.img;
+        charmName = item.filename.replace(/\.(png|jpg|jpeg)$/i, '');
+        textLayoutLines.push(`[${i + 1}] ${charmName}`);
       }
-      
-      emailParams[`charm_${i + 1}_url`] = imageUrl;
-      emailParams[`charm_${i + 1}_name`] = charmName;
+    } else {
+      imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
+      charmName = 'Empty';
     }
     
-    // Add text layout
-    emailParams.text_layout = textLayoutLines.join('\n');
+    emailParams[`charm_${i + 1}_url`] = imageUrl;
+    emailParams[`charm_${i + 1}_name`] = charmName;
+  }
+  
+  // Add text layout
+  emailParams.text_layout = textLayoutLines.join('\n');
 
-    console.log('✅ Charm URLs prepared. Sample:', {
-      position_1: emailParams.charm_1_url,
-      position_2: emailParams.charm_2_url,
-      position_3: emailParams.charm_3_url
+  console.log('✅ Charm URLs prepared');
+
+  // Send order to Google Sheets
+  try {
+    console.log('📊 Sending order to Google Sheets...');
+    
+    const sheetResponse = await fetch('/api/stock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderData: {
+          customerName,
+          phone: phoneNumber,
+          pickupTime,
+          meetupPlace,
+          deliveryDate,
+          size: `${maxSlots} charms`,
+          charms: charmsList,
+          subtotal: subtotal.toFixed(2),
+          deliveryFee: deliveryFee.toFixed(2),
+          total: total.toFixed(2)
+        }
+      })
     });
 
-    // DEBUG: Show all URLs being sent
-    console.log('📸 ALL CHARM URLS BEING SENT:');
-    for (let i = 1; i <= 22; i++) {
-      console.log(`Position ${i}: ${emailParams[`charm_${i}_url`]}`);
+    const sheetData = await sheetResponse.json();
+    
+    if (!sheetData.success) {
+      console.error('❌ Failed to save to Google Sheets:', sheetData.error);
+      // Continue anyway - email is more important
+    } else {
+      console.log('✅ Order saved to Google Sheets!');
     }
 
-    // Send email
-    try {
-      console.log('📧 Sending email to EmailJS...');
-      
-      await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
-      
-      console.log('✅ Email sent successfully!');
-      alert('✅ Order submitted successfully!\n\nIf you have any concern please DM us on Instagram: @navilleracharms.ae');
-      setCheckoutFormOpen(false);
-      
-      // Reset form
-      setCustomerName('');
-      setPhoneNumber('');
-      setPickupTime('');
-      setMeetupPlace('');
-      setDeliveryDate('');
-      
-    } catch (error: any) {
-      console.error('❌ Email sending failed:', error);
-      console.error('Error details:', {
-        status: error?.status,
-        text: error?.text,
-        message: error?.message
-      });
-      alert('❌ Failed to send order: ' + (error?.text || error?.message || 'Unknown error'));
-    }
-  };
+  } catch (sheetError: any) {
+    console.error('❌ Google Sheets error:', sheetError);
+    // Continue anyway - email is more important
+  }
+
+  // Send email
+  try {
+    console.log('📧 Sending email to EmailJS...');
+    
+    await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
+    
+    console.log('✅ Email sent successfully!');
+    alert('✅ Order submitted successfully!\n\nIf you have any concern please DM us on Instagram: @navilleracharms.ae');
+    setCheckoutFormOpen(false);
+    
+    // Reset form
+    setCustomerName('');
+    setPhoneNumber('');
+    setPickupTime('');
+    setMeetupPlace('');
+    setDeliveryDate('');
+    
+  } catch (error: any) {
+    console.error('❌ Email sending failed:', error);
+    console.error('Error details:', {
+      status: error?.status,
+      text: error?.text,
+      message: error?.message
+    });
+    alert('❌ Failed to send order: ' + (error?.text || error?.message || 'Unknown error'));
+  }
+};
+
 
   const updateCharmStock = async (charmName: string, quantity: number) => {
     setStockLoading(prev => ({ ...prev, [charmName]: true }));

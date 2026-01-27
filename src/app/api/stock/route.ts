@@ -181,23 +181,26 @@ async function handleOrderSubmission(orderData: any) {
   }
 
   const sheets = await getGoogleSheets();
+  const timestamp = new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai' });
 
-  // Append order to Sheet1
+  // Append order to Sheet1 - match your column headers exactly
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${ORDERS_SHEET}!A:I`,
+    range: `${ORDERS_SHEET}!A:J`,
     valueInputOption: 'RAW',
     requestBody: {
       values: [[
-        customerName,
-        phone,
-        pickupTime,
-        meetupPlace,
-        deliveryDate,
-        size,
-        charms, // This will be a string representation of the charms
-        subtotal,
-        total
+        customerName,      // A: Customer Name
+        phone,            // B: Phone
+        pickupTime,       // C: Pickup Time
+        meetupPlace,      // D: Meetup Place
+        deliveryDate,     // E: Delivery Date
+        size,             // F: Size
+        charms,           // G: Charms
+        subtotal,         // H: Subtotal
+        deliveryFee,      // I: Delivery Fee (add this column header)
+        total,            // J: Total (move this from I to J)
+        timestamp         // K: Add timestamp column
       ]],
     },
   });

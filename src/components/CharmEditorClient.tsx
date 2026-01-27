@@ -316,10 +316,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('✅ Form submitted');
+    
     if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
       alert('Please fill in all fields.');
       return;
     }
+
+    console.log('✅ Validation passed');
 
     const element = braceletRef.current;
     if (!element) {
@@ -331,82 +335,63 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     const deliveryFee = getDeliveryFee(meetupPlace);
     const total = subtotal + deliveryFee;
 
-    console.log('📧 Preparing visual bracelet layout for email...');
+    console.log('✅ Totals calculated:', { subtotal, deliveryFee, total });
 
-    // Create array of charm image URLs in order
-    // IMPORTANT: Make sure these URLs are publicly accessible
-    const braceletImages = bracelet.map((item, index) => {
-      if (!item || item.isPlaceholder) {
-        // Use the selected base color plain charm
-        return {
-          position: index + 1,
-          imageUrl: `/charms/${selectedBaseColor}_Plain_Charm.png`, // Your plain charm path
-          name: `${selectedBaseColor} Plain Charm`,
-          price: getPrice(`${selectedBaseColor}_Plain_Charm.png`)
-        };
+    // Get your website base URL (where your charm images are hosted)
+    const baseUrl = window.location.origin; // e.g., https://yoursite.vercel.app
+    
+    console.log('✅ Base URL:', baseUrl);
+
+    // Prepare email parameters
+    const emailParams: any = {
+      to_email: 'Navilleracharmstudio@gmail.com',
+      customer_name: customerName,
+      phone: phoneNumber,
+      pickup_time: pickupTime,
+      meetup_place: meetupPlace,
+      delivery_date: deliveryDate,
+      bracelet_size: `${maxSlots} charms`,
+      base_color: selectedBaseColor,
+      subtotal: subtotal.toFixed(2),
+      delivery_fee: deliveryFee.toFixed(2),
+      total: total.toFixed(2)
+    };
+
+    // Add URL for each charm position (1-22)
+    for (let i = 0; i < 22; i++) {
+      const item = bracelet[i];
+      let imageUrl = '';
+      
+      if (i < maxSlots) {
+        if (!item || item.isPlaceholder) {
+          // Empty slot = show plain charm of selected base color
+          imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
+        } else {
+          // Has a charm = show that charm's image
+          imageUrl = baseUrl + item.img;
+        }
+      } else {
+        // Beyond bracelet size = blank/placeholder
+        imageUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
       }
-      return {
-        position: index + 1,
-        imageUrl: item.img, // This should be like '/charms/Gold_Heart_Charm.png'
-        name: item.filename.replace(/\.(png|jpg|jpeg)$/i, ''),
-        price: getPrice(item.filename)
-      };
+      
+      emailParams[`charm_${i + 1}_url`] = imageUrl;
+    }
+
+    console.log('✅ Charm URLs prepared. Sample:', {
+      position_1: emailParams.charm_1_url,
+      position_2: emailParams.charm_2_url,
+      position_3: emailParams.charm_3_url
     });
 
-    // Convert to JSON string for email
-    const braceletImagesJson = JSON.stringify(braceletImages);
-
-    // Also create a comma-separated list of image URLs for simple template
-    const imageUrlsList = braceletImages.map(b => b.imageUrl).join(',');
-
-    // Create item counts for summary
-    const itemCounts: { [key: string]: number } = {};
-    bracelet.forEach(item => {
-      if (item && !item.isPlaceholder) {
-        const name = item.filename;
-        itemCounts[name] = (itemCounts[name] || 0) + 1;
-      }
-    });
-
-    const orderSummary = Object.entries(itemCounts)
-      .map(([name, count]) => {
-        const cleanName = name.replace(/\.(png|jpg|jpeg)$/i, '');
-        const itemTotal = count * getPrice(name);
-        return `${count}x ${cleanName} @ ${getPrice(name).toFixed(2)} AED = ${itemTotal.toFixed(2)} AED`;
-      })
-      .join('\n');
-
-    const totalCharms = bracelet.filter(item => item && !item.isPlaceholder).length;
-
-    // Send email with visual layout data
+    // Send email - NO IMAGE UPLOAD, JUST SENDING URLS!
     try {
-      console.log('📧 Sending order with visual bracelet layout...');
+      console.log('📧 Sending email to EmailJS...');
       
-      // Get your website base URL (replace with your actual URL)
-      const baseUrl = window.location.origin; // e.g., https://yourdomain.com
-      
-      const emailParams = {
-        to_email: 'Navilleracharmstudio@gmail.com',
-        customer_name: customerName,
-        phone: phoneNumber,
-        pickup_time: pickupTime,
-        meetup_place: meetupPlace,
-        delivery_date: deliveryDate,
-        bracelet_size: `${maxSlots} charms (${totalCharms} special charms)`,
-        base_color: selectedBaseColor,
-        bracelet_images: braceletImagesJson, // JSON array of all charm data
-        image_urls_list: imageUrlsList, // Comma-separated URLs
-        base_url: baseUrl, // So email can build full URLs
-        order_summary: orderSummary || 'All plain charms',
-        subtotal: subtotal.toFixed(2),
-        delivery_fee: deliveryFee.toFixed(2),
-        total: total.toFixed(2)
-      };
-
       await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
       
-      console.log('✅ Order sent successfully!');
-      alert('✅ Order submitted successfully!\n\nYou will receive a confirmation email with the visual bracelet layout.');
+      console.log('✅ Email sent successfully!');
+      alert('✅ Order submitted successfully!\n\nCheck your email for the visual bracelet layout.');
       setCheckoutFormOpen(false);
       
       // Reset form
@@ -417,8 +402,13 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       setDeliveryDate('');
       
     } catch (error: any) {
-      console.error('❌ Email failed:', error);
-      alert('Failed to send order: ' + (error?.text || error?.message || 'Unknown error. Please try again.'));
+      console.error('❌ Email sending failed:', error);
+      console.error('Error details:', {
+        status: error?.status,
+        text: error?.text,
+        message: error?.message
+      });
+      alert('❌ Failed to send order: ' + (error?.text || error?.message || 'Unknown error'));
     }
   };
   let filteredCharms = activeCategory === "All" ? charmData : charmData.filter((c) => c.category === activeCategory);

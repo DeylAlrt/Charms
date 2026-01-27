@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import path from 'path';
+import fs from 'fs';  // Add this line
 
 const SPREADSHEET_ID = '1MUr3yoQFTFwuRd0cEOKOHF8ke9Nd1wVYjOhnBySAvP4';
 const STOCK_SHEET = 'Stock';
@@ -12,8 +13,10 @@ async function getGoogleSheets() {
     // Production: use environment variable
     credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
   } else {
-    // Local: use file
-    credentials = require(path.join(process.cwd(), 'google-credentials.json'));
+    // Local: read file using fs
+    const fs = require('fs');
+    const credentialsPath = path.join(process.cwd(), 'google-credentials.json');
+    credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
   }
     
   const auth = new google.auth.GoogleAuth({

@@ -260,6 +260,8 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const [pickupTime, setPickupTime] = useState('');
   const [meetupPlace, setMeetupPlace] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
+  const [charmStock, setCharmStock] = useState<Record<string, number>>({});
+  const [stockLoading, setStockLoading] = useState<Record<string, boolean>>({});
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -286,6 +288,17 @@ export default function CharmEditorClient({ charmFiles }: Props) {
 
   useEffect(() => {
     emailjs.init('-2tCjwFJUnT97N93w'); // EmailJS Public Key
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/stock')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setCharmStock(data.stock);
+        }
+      })
+      .catch(err => console.error('Error loading stock:', err));
   }, []);
 
   useEffect(() => {
@@ -428,6 +441,37 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       });
       alert('❌ Failed to send order: ' + (error?.text || error?.message || 'Unknown error'));
     }
+  };
+
+  const updateCharmStock = async (charmName: string, quantity: number) => {
+    setStockLoading(prev => ({ ...prev, [charmName]: true }));
+    
+    try {
+      const response = await fetch('/api/stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ charmName, quantity }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setCharmStock(prev => ({ ...prev, [charmName]: data.quantity }));
+      } else {
+        alert('Failed to update stock: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      alert('Failed to update stock');
+    }
+    
+    setStockLoading(prev => ({ ...prev, [charmName]: false }));
+  };
+
+  const getStockColor = (stock: number) => {
+    if (stock === 0) return 'text-red-600 font-bold';
+    if (stock < 5) return 'text-yellow-600 font-semibold';
+    return 'text-green-600';
   };
   let filteredCharms = activeCategory === "All" ? charmData : charmData.filter((c) => c.category === activeCategory);
 
@@ -852,10 +896,37 @@ export default function CharmEditorClient({ charmFiles }: Props) {
               {filteredCharms.map((charm) => (
                 <div key={charm.id} className="relative group">
                   <DraggableCharm charm={charm} />
-                  <div className="absolute right-1 bottom-1 flex gap-1 items-center invisible group-hover:visible">
-                    {ownerMode && <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>}
-                    {ownerMode && <button onClick={() => openRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>}
+                  <div className="absolute right-1 bottom-1 flex flex-col gap-1 items-end invisible group-hover:visible">
+                    <div className="flex gap-1">
+                      {ownerMode && <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>}
+                      {ownerMode && <button onClick={() => openRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>}
+                    </div>
+                    {ownerMode && (
+                      <div className="flex items-center gap-1 bg-white/90 px-1 rounded">
+                        <span className="text-[9px] text-gray-600">Stock:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={charmStock[charm.filename.replace(/\.(png|jpg|jpeg)$/i, '')] || 0}
+                          onChange={(e) => {
+                            const qty = parseInt(e.target.value) || 0;
+                            updateCharmStock(
+                              charm.filename.replace(/\.(png|jpg|jpeg)$/i, ''),
+                              qty
+                            );
+                          }}
+                          disabled={stockLoading[charm.filename.replace(/\.(png|jpg|jpeg)$/i, '')]}
+                          className={`
+                            w-14 px-1 py-0.5 text-[11px] text-center border rounded
+                            focus:outline-none focus:ring-1 focus:ring-sky-500
+                            ${getStockColor(charmStock[charm.filename.replace(/\.(png|jpg|jpeg)$/i, '')] || 0)}
+                            ${stockLoading[charm.filename.replace(/\.(png|jpg|jpeg)$/i, '')] ? 'opacity-50' : ''}
+                          `}
+                        />
+                      </div>
+                    )}
                   </div>
+
                 </div>
               ))}
             </div>

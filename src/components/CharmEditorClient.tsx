@@ -316,14 +316,10 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('🔵 Form submitted');
-    
     if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
       alert('Please fill in all fields.');
       return;
     }
-
-    console.log('🔵 Validation passed');
 
     const element = braceletRef.current;
     if (!element) {
@@ -335,110 +331,59 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     const deliveryFee = getDeliveryFee(meetupPlace);
     const total = subtotal + deliveryFee;
 
-    console.log('🔵 Totals calculated:', { subtotal, deliveryFee, total });
+    console.log('📧 Preparing visual bracelet layout for email...');
 
-    // Detect if mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    console.log('🔵 Device type:', isMobile ? 'Mobile' : 'Desktop');
-
-    let imageUrl = '';
-
-    // On mobile, ask user if they want to skip image
-    if (isMobile) {
-      const skipImage = confirm('📱 Mobile detected!\n\nCapturing images on mobile can be slow or fail.\n\nClick OK to try with image\nClick CANCEL to send order without image');
-      
-      if (skipImage) {
-        console.log('🔵 User chose to skip image on mobile');
-        imageUrl = 'https://via.placeholder.com/600x100/0ea5e9/ffffff?text=Order+submitted+from+mobile+-+no+image';
+    // Create array of charm image URLs in order
+    // IMPORTANT: Make sure these URLs are publicly accessible
+    const braceletImages = bracelet.map((item, index) => {
+      if (!item || item.isPlaceholder) {
+        // Use the selected base color plain charm
+        return {
+          position: index + 1,
+          imageUrl: `/charms/${selectedBaseColor}_Plain_Charm.png`, // Your plain charm path
+          name: `${selectedBaseColor} Plain Charm`,
+          price: getPrice(`${selectedBaseColor}_Plain_Charm.png`)
+        };
       }
-    }
+      return {
+        position: index + 1,
+        imageUrl: item.img, // This should be like '/charms/Gold_Heart_Charm.png'
+        name: item.filename.replace(/\.(png|jpg|jpeg)$/i, ''),
+        price: getPrice(item.filename)
+      };
+    });
 
-    // Try to capture image if not skipped
-    if (!imageUrl) {
-      try {
-        console.log('📸 Starting screenshot capture...');
-        
-        element.classList.add('screenshot-safe-zone');
+    // Convert to JSON string for email
+    const braceletImagesJson = JSON.stringify(braceletImages);
 
-        // Wait for render
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('🔵 Waited for render');
+    // Also create a comma-separated list of image URLs for simple template
+    const imageUrlsList = braceletImages.map(b => b.imageUrl).join(',');
 
-        console.log('🔵 Calling html2canvas...');
-        const canvas = await html2canvas(element, {
-          useCORS: true,
-          allowTaint: true,
-          scale: isMobile ? 1 : 2,
-          backgroundColor: '#ffffff',
-          logging: true, // Enable logging to see what's happening
-          windowWidth: isMobile ? element.scrollWidth : undefined,
-          windowHeight: isMobile ? element.scrollHeight : undefined,
-          onclone: (clonedDoc) => {
-            console.log('🔵 html2canvas onclone called');
-            const clonedElement = clonedDoc.querySelector('.screenshot-safe-zone') as HTMLElement;
-            if (clonedElement) {
-              clonedElement.style.padding = "20px";
-              clonedElement.style.color = '#000000';
-              clonedElement.style.backgroundColor = '#ffffff';
-            }
-          }
-        });
-
-        console.log('✅ html2canvas completed, canvas size:', canvas.width, 'x', canvas.height);
-        element.classList.remove('screenshot-safe-zone');
-
-        console.log('🔵 Converting to base64...');
-        const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        console.log('🔵 Base64 length:', base64Image.length);
-
-        console.log('📤 Uploading to ImgBB...');
-        const formData = new FormData();
-        formData.append('image', base64Image);
-
-        const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=d2c4d86b7808c3c3e3b8c5c5d5e5f5a5', {
-          method: 'POST',
-          body: formData
-        });
-
-        console.log('🔵 ImgBB response status:', imgbbResponse.status);
-        const imgbbData = await imgbbResponse.json();
-        console.log('🔵 ImgBB response:', imgbbData);
-
-        if (imgbbData.success && imgbbData.data && imgbbData.data.url) {
-          imageUrl = imgbbData.data.url;
-          console.log('✅ Image uploaded successfully:', imageUrl);
-        } else {
-          throw new Error('ImgBB upload failed: ' + JSON.stringify(imgbbData));
-        }
-
-      } catch (error) {
-        element.classList.remove('screenshot-safe-zone');
-        console.error('❌ Screenshot/upload error:', error);
-        console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
-        console.error('Error message:', error instanceof Error ? error.message : String(error));
-        
-        // On mobile, offer to continue without image
-        if (isMobile) {
-          const continueWithout = confirm('Image capture failed on mobile.\n\nDo you want to submit order WITHOUT image?\n\nOK = Submit without image\nCANCEL = Try again');
-          
-          if (continueWithout) {
-            imageUrl = 'https://via.placeholder.com/600x100/dc2626/ffffff?text=Image+capture+failed+-+order+details+in+email';
-            console.log('🔵 User chose to continue without image');
-          } else {
-            console.log('🔵 User cancelled');
-            return;
-          }
-        } else {
-          alert('Image capture failed. Please try again.');
-          return;
-        }
+    // Create item counts for summary
+    const itemCounts: { [key: string]: number } = {};
+    bracelet.forEach(item => {
+      if (item && !item.isPlaceholder) {
+        const name = item.filename;
+        itemCounts[name] = (itemCounts[name] || 0) + 1;
       }
-    }
+    });
 
-    // Send email
+    const orderSummary = Object.entries(itemCounts)
+      .map(([name, count]) => {
+        const cleanName = name.replace(/\.(png|jpg|jpeg)$/i, '');
+        const itemTotal = count * getPrice(name);
+        return `${count}x ${cleanName} @ ${getPrice(name).toFixed(2)} AED = ${itemTotal.toFixed(2)} AED`;
+      })
+      .join('\n');
+
+    const totalCharms = bracelet.filter(item => item && !item.isPlaceholder).length;
+
+    // Send email with visual layout data
     try {
-      console.log('📧 Preparing to send email...');
-      console.log('🔵 Image URL:', imageUrl);
+      console.log('📧 Sending order with visual bracelet layout...');
+      
+      // Get your website base URL (replace with your actual URL)
+      const baseUrl = window.location.origin; // e.g., https://yourdomain.com
       
       const emailParams = {
         to_email: 'Navilleracharmstudio@gmail.com',
@@ -447,19 +392,21 @@ export default function CharmEditorClient({ charmFiles }: Props) {
         pickup_time: pickupTime,
         meetup_place: meetupPlace,
         delivery_date: deliveryDate,
-        bracelet_image_url: imageUrl,
+        bracelet_size: `${maxSlots} charms (${totalCharms} special charms)`,
+        base_color: selectedBaseColor,
+        bracelet_images: braceletImagesJson, // JSON array of all charm data
+        image_urls_list: imageUrlsList, // Comma-separated URLs
+        base_url: baseUrl, // So email can build full URLs
+        order_summary: orderSummary || 'All plain charms',
         subtotal: subtotal.toFixed(2),
         delivery_fee: deliveryFee.toFixed(2),
         total: total.toFixed(2)
       };
 
-      console.log('🔵 Email params prepared');
-      console.log('🔵 Calling emailjs.send...');
-
       await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
       
-      console.log('✅ Email sent successfully!');
-      alert('✅ Order submitted successfully! Check your email for confirmation.');
+      console.log('✅ Order sent successfully!');
+      alert('✅ Order submitted successfully!\n\nYou will receive a confirmation email with the visual bracelet layout.');
       setCheckoutFormOpen(false);
       
       // Reset form
@@ -470,14 +417,8 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       setDeliveryDate('');
       
     } catch (error: any) {
-      console.error('❌ Email sending failed:', error);
-      console.error('Error details:', {
-        status: error?.status,
-        text: error?.text,
-        message: error?.message,
-        name: error?.name
-      });
-      alert('❌ Email sending failed: ' + (error?.text || error?.message || 'Unknown error. Please try again.'));
+      console.error('❌ Email failed:', error);
+      alert('Failed to send order: ' + (error?.text || error?.message || 'Unknown error. Please try again.'));
     }
   };
   let filteredCharms = activeCategory === "All" ? charmData : charmData.filter((c) => c.category === activeCategory);

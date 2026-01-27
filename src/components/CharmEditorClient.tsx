@@ -402,14 +402,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       console.log(`Position ${i}: ${emailParams[`charm_${i}_url`]}`);
     }
 
-    // Send email - NO IMAGE UPLOAD, JUST SENDING URLS!
+    // Send email
     try {
       console.log('📧 Sending email to EmailJS...');
       
       await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
       
       console.log('✅ Email sent successfully!');
-      alert('✅ Order submitted successfully!\n\nCheck your email for the visual bracelet layout.');
+      alert('✅ Order submitted successfully!\n\nIf you have any concern please DM us on Instagram: @navilleracharms.ae');
       setCheckoutFormOpen(false);
       
       // Reset form
@@ -934,7 +934,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                   ));
                 })()}
               </div>
-              <div className="border-t border-sky-200 pt-4 sticky bottom-0 bg-sky-50">
+              <div className="border-t border-sky-200 pt-4 sticky bg-sky-50 -bottom-[22px]"> 
                 <div className="mb-4">
                   <label className="block text-sm font-semibold text-black mb-2">Discount Code</label>
                   <input
@@ -946,7 +946,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                 <div className="text-xl font-bold mb-4 text-black">
                   Total: {bracelet.reduce((sum, item) => sum + (item ? getPrice(item.filename) : 0), 0).toFixed(2)} AED
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-4">
                   <button onClick={() => setCartOpen(false)} className="flex-1 bg-gray-400 hover:bg-gray-500 text-black px-4 py-3 rounded-lg transition text-lg">
                     Back
                   </button>

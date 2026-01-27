@@ -6,10 +6,21 @@ const SPREADSHEET_ID = '1MUr3yoQFTFwuRd0cEOKOHF8ke9Nd1wVYjOhnBySAvP4';
 const STOCK_SHEET = 'Stock';
 
 async function getGoogleSheets() {
+  let credentials;
+  
+  if (process.env.GOOGLE_CREDENTIALS) {
+    // Production: use environment variable
+    credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  } else {
+    // Local: use file
+    credentials = require(path.join(process.cwd(), 'google-credentials.json'));
+  }
+    
   const auth = new google.auth.GoogleAuth({
-    keyFile: path.join(process.cwd(), 'google-credentials.json'),
+    credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
+  
   return google.sheets({ version: 'v4', auth });
 }
 

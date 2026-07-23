@@ -4,150 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import html2canvas from 'html2canvas';
 import emailjs from '@emailjs/browser';
+import DraggableCharm from './DraggableCharm';
+import { LETTER_ORDER, baseColorOptions, getCategory, getPlaceholderCharm, getPrice, type BaseColor } from './charmEditorUtils';
 
 type Props = {
   charmFiles: string[];
 };
-
-// SMART AUTO-PRICING
-const getPrice = (filename: string): number => {
-  const lower = filename.toLowerCase();
-
-  // PLAIN CHARMS — HIGHEST PRIORITY
-  if (lower.includes("plain")) {
-    if (lower.includes("gold")) return 1.50;
-    if (lower.includes("silver")) return 1.00;
-    if (lower.includes("red")) return 1.50;
-    if (lower.includes("blue")) return 1.50;
-    if (lower.includes("black")) return 1.50;
-    if (lower.includes("brown")) return 1.50;
-    if (lower.includes("purple")) return 1.50;
-    if (lower.includes("pink")) return 1.50;
-    return 1.00; // default plain
-  }
-
-  // Classics — auto price
-  if (lower.includes("classic")) {
-    if (lower.includes("concave")) return 2.50;
-    if (lower.includes("gold")) return 3.00;
-    if (lower.includes("outline")) return 3.50;
-    if (lower.includes("colored")) return 4.00;
-    if (lower.includes("solid")) return 4.50;
-    return 0.00;
-  }
-
-  // Premiums — auto price
-  if (lower.includes("premium")) {
-    if (lower.includes("starter")) return 5.00;
-    if (lower.includes("charming")) return 7.00;
-    if (lower.includes("iconic")) return 8.00;
-    return 7.00;
-  }
-
-  // Deluxes — auto price
-  if (lower.includes("deluxe")) {
-    if (lower.includes("baby")) return 10.00;
-    if (lower.includes("silver")) return 12.00;
-    if (lower.includes("gold")) return 15.00;
-    return 0.00;
-  }
-  
-  // Flags — special price
-  if (lower.includes("flag")) {
-    return 8.00;
-  }
-
-  if (lower.includes("letters")) {
-    if (lower.includes("gold")) return 3.50;
-    if (lower.includes("silver")) return 3.00;
-    return 0.00;
-  }
-
-  if (lower.includes("number")) {
-    return 3.00;
-  } 
-
-  // DEFAULT
-  return 0.00;
-};
-
-const getCategory = (filename: string): string => {
-  const s = filename.toLowerCase();
-
-  if (s.includes("classic") || s.includes("plain")) return "Classic Charms";
-  if (s.includes("premium")) return "Premium Charms";
-  if (s.includes("deluxe")) return "Deluxe Charms";
-  if (s.includes("letters")) return "A-Z";
-  if (s.includes("number")) return "0-9";
-  if (s.includes("flags")) return "Flags";
-  return "All";
-};
-
-const LETTER_ORDER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Brown", "Red", "Purple", "Pink"] as const;
-type BaseColor = typeof baseColorOptions[number];
-
-const getPlaceholderCharm = (color: BaseColor) => ({
-  id: `placeholder-${color.toLowerCase()}`,
-  img: `/charms/${color}_Plain_Charm.png`,
-  filename: `${color}_Plain_Charm.png`,
-  isPlaceholder: true,
-});
-
-function DraggableCharm({ charm, compact = false, onTap, interactive = true }: any) {
-  const isSoldOut = charm.filename.toLowerCase().includes("sold");
-
-  return (
-    <button
-      type="button"
-      onClick={() => interactive && !isSoldOut && onTap?.(charm)}
-      className={`relative group ${isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer'} border-0 bg-transparent p-0`}
-      style={{ touchAction: 'manipulation', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
-    >
-      <div
-        className={`
-          relative overflow-hidden rounded-lg shadow-md flex flex-col items-center
-          ${compact ? 'p-0' : 'p-2'}
-          ${isSoldOut ? 'bg-gray-300 border-2 border-gray-400' : 'bg-white'}
-        `}
-      >
-        <Image
-          src={charm.img}
-          alt={charm.filename}
-          width={120}
-          height={120}
-          className={`
-            w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain
-            ${isSoldOut ? 'opacity-30' : 'opacity-100'}
-            select-none /* ← NEW: Prevents text/image selection */
-          `}
-          unoptimized
-          draggable={false}
-          style={{
-            WebkitTouchCallout: 'none',
-            WebkitUserSelect: 'none',   
-            userSelect: 'none',         
-          }}
-          onContextMenu={(e) => e.preventDefault()} 
-        />
-
-        {isSoldOut && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <Image
-              src="/Sold Out.png"
-              alt="Sold Out"
-              width={100}
-              height={100}
-              className="w-full h-full object-contain px-3 drop-shadow-2xl"
-              unoptimized
-            />
-          </div>
-        )}
-      </div>
-    </button>
-  );
-}
 
 export default function CharmEditorClient({ charmFiles }: Props) {
   const charmData = charmFiles.map((file, i) => {
@@ -747,21 +609,22 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                             }}
                             onTouchStart={(e) => {
                               if (!bracelet[i]?.isPlaceholder) {
+                                const isEdgeCharm = i <= 1 || i >= maxSlots - 2;
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setTouchDraggingIndex(i);
                                 setSelectedBraceletIndex(i);
-                                setIsDraggingCharm(true);
+                                setIsDraggingCharm(!isEdgeCharm);
                               }
                             }}
                             onTouchMove={(e) => {
-                              if (touchDraggingIndex !== null) {
+                              if (touchDraggingIndex !== null && isDraggingCharm) {
                                 e.preventDefault();
                                 e.stopPropagation();
                               }
                             }}
                             onTouchEnd={(e) => {
-                              if (touchDraggingIndex !== null) {
+                              if (touchDraggingIndex !== null && isDraggingCharm) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const touch = e.changedTouches[0];

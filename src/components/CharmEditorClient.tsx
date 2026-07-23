@@ -1,18 +1,6 @@
 "use client";
 
-import {
-  DndContext,
-  pointerWithin,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverlay,
-  useDroppable,
-} from "@dnd-kit/core";
 import { useState, useRef, useEffect } from "react";
-import { useDraggable } from "@dnd-kit/core";
 import Image from "next/image";
 import html2canvas from 'html2canvas';
 import emailjs from '@emailjs/browser';
@@ -107,27 +95,21 @@ const getPlaceholderCharm = (color: BaseColor) => ({
   isPlaceholder: true,
 });
 
-function DraggableCharm({ charm, compact = false }: any) {
+function DraggableCharm({ charm, compact = false, onTap, interactive = true }: any) {
   const isSoldOut = charm.filename.toLowerCase().includes("sold");
 
-  const { attributes, listeners, setNodeRef } = useDraggable({
-    id: charm.id,
-    disabled: isSoldOut,
-  });
-
   return (
-    <div
-      ref={setNodeRef}
-      {...(!isSoldOut && listeners)}
-      {...(!isSoldOut && attributes)}
-      className={`relative group ${isSoldOut ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
+    <button
+      type="button"
+      onClick={() => interactive && !isSoldOut && onTap?.(charm)}
+      className={`relative group ${isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer'} border-0 bg-transparent p-0`}
+      style={{ touchAction: 'manipulation', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
     >
       <div
         className={`
           relative overflow-hidden rounded-lg shadow-md flex flex-col items-center
           ${compact ? 'p-0' : 'p-2'}
-          ${isSoldOut ? 'bg-gray-300 border-2 border-gray-400' : 'bg-white hover:shadow-lg'}
-          transition-all
+          ${isSoldOut ? 'bg-gray-300 border-2 border-gray-400' : 'bg-white'}
         `}
       >
         <Image
@@ -149,25 +131,7 @@ function DraggableCharm({ charm, compact = false }: any) {
           }}
           onContextMenu={(e) => e.preventDefault()} 
         />
-        {!isSoldOut && (
-          <div 
-            className="fixed pointer-events-none z-50 opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ left: 'var(--mouse-x)', top: 'var(--mouse-y)' }}
-          >
-            <div className="relative translate-x-6 -translate-y-14">
-              <div className="bg-gray-900 text-white font-bold text-sm px-4 py-2 rounded-xl shadow-2xl whitespace-nowrap">
-                {getPrice(charm.filename).toFixed(2)} AED
-              </div>
-              <div className="absolute top-1/2 -left-3 -translate-y-1/2">
-                <div className="w-0 h-0 
-                  border-t-10 border-t-transparent
-                  border-r-16 border-r-gray-900
-                  border-b-10 border-b-transparent
-                " />
-              </div>
-            </div>
-          </div>
-        )}
+
         {isSoldOut && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <Image
@@ -181,7 +145,7 @@ function DraggableCharm({ charm, compact = false }: any) {
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -220,13 +184,6 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     ));
   }, [selectedBaseColor]);
 
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY });
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
   useEffect(() => {
     const placeholder = getPlaceholderCharm(selectedBaseColor);
     setBracelet(prev => {
@@ -240,14 +197,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     });
   }, [maxSlots, selectedBaseColor]);
 
-  useEffect(() => {
-    document.documentElement.style.setProperty('--mouse-x', `${mousePos.x}px`);
-    document.documentElement.style.setProperty('--mouse-y', `${mousePos.y}px`);
-  }, [mousePos]);
+
 
   const [activeCategory, setActiveCategory] = useState("All");
-  const [activeCharm, setActiveCharm] = useState<any>(null);
   const [showCategories, setShowCategories] = useState(true);
+  const [selectedBraceletIndex, setSelectedBraceletIndex] = useState<number | null>(null);
+  const [draggingBraceletIndex, setDraggingBraceletIndex] = useState<number | null>(null);
+  const [touchDraggingIndex, setTouchDraggingIndex] = useState<number | null>(null);
+  const [isDraggingCharm, setIsDraggingCharm] = useState(false);
   const [ownerMode, setOwnerMode] = useState(false);
   const [colorStatuses, setColorStatuses] = useState<Record<string, boolean>>({});
   const availableBaseColors = Object.keys(colorStatuses).filter(c => colorStatuses[c]);
@@ -262,18 +219,6 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [charmStock, setCharmStock] = useState<Record<string, number>>({});
   const [stockLoading, setStockLoading] = useState<Record<string, boolean>>({});
-
-  const sensors = useSensors(
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 50,
-        tolerance: 5,  
-      },
-    }),
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 10 },
-    })
-  );
 
   useEffect(() => {
     fetch('/api/base-colors')
@@ -666,103 +611,56 @@ const handleFormSubmit = async (e: React.FormEvent) => {
     setBracelet(prev => prev.map(item => item?.id === id ? getPlaceholderCharm(selectedBaseColor) : item));
   };
 
-  // ONLY FIXED PART — DRAG & DROP NOW WORKS
-  const handleDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e;
-    setActiveCharm(null);
+  const handleRemoveCharmFromBracelet = (index: number) => {
+    setBracelet(prev => {
+      const copy = [...prev];
+      copy[index] = getPlaceholderCharm(selectedBaseColor);
+      return copy;
+    });
+    setSelectedBraceletIndex(null);
+  };
 
-    if (!over || !String(over.id).startsWith("slot-")) {
-      const fromIndex = bracelet.findIndex(item => item?.id === active.id);
-      if (fromIndex !== -1 && !bracelet[fromIndex]?.isPlaceholder) {
-        setBracelet(prev => {
-          const copy = [...prev];
-          copy[fromIndex] = getPlaceholderCharm(selectedBaseColor);
-          return copy;
-        });
-      }
+  const handleSwapBraceletCharms = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) {
+      setSelectedBraceletIndex(null);
+      setDraggingBraceletIndex(null);
       return;
     }
 
-    const targetIndex = Number(String(over.id).slice(5));
-    const fromIndex = bracelet.findIndex(item => item?.id === active.id);
+    setBracelet(prev => {
+      const copy = [...prev];
+      const temp = copy[fromIndex];
+      copy[fromIndex] = copy[toIndex];
+      copy[toIndex] = temp;
+      return copy;
+    });
+    setSelectedBraceletIndex(null);
+    setDraggingBraceletIndex(null);
+  };
 
-    if (fromIndex === -1) {
-      // FROM CATALOG → ADD
-      const catalogCharm = charmData.find(c => c.id === active.id);
-      if (!catalogCharm || catalogCharm.filename.toLowerCase().includes("sold")) return;
+  const handleAddCharmToBracelet = (charm: any) => {
+    if (!charm || charm.filename.toLowerCase().includes("sold")) return;
 
-      setBracelet(prev => {
-        const copy = [...prev];
-        copy[targetIndex] = {
-          ...catalogCharm,
-          id: `bracelet-${Date.now()}-${Math.random()}`,
-        };
-        return copy;
-      });
-      return;
-    }
+    setBracelet(prev => {
+      const copy = [...prev];
+      const emptyIndex = copy.findIndex(item => !item || item.isPlaceholder);
+      if (emptyIndex === -1) return prev;
 
-    // FROM BRACELET → SWAP
-    if (fromIndex !== -1 && targetIndex !== fromIndex) {
-      setBracelet(prev => {
-        const copy = [...prev];
-        const temp = copy[fromIndex];
-        copy[fromIndex] = copy[targetIndex];
-        copy[targetIndex] = temp;
-        copy[fromIndex] = { ...copy[fromIndex], id: `swapped-${Date.now()}-a` };
-        copy[targetIndex] = { ...copy[targetIndex], id: `swapped-${Date.now()}-b` };
-        return copy;
-      });
-    }
+      copy[emptyIndex] = {
+        ...charm,
+        id: `bracelet-${Date.now()}-${Math.random()}`,
+      };
+      return copy;
+    });
   };
 
   const filled = bracelet.filter(b => !b?.isPlaceholder).length;
 
-  function DroppableSlot({ index, children }: { index: number; children?: React.ReactNode }) {
-    const { isOver, setNodeRef } = useDroppable({ id: `slot-${index}` });
-    const currentItem = bracelet[index];
-
-    const { attributes, listeners, setNodeRef: setDraggableRef } = useDraggable({
-      id: `bracelet-${index}`,
-      disabled: currentItem?.isPlaceholder || false,
-    });
-
-    return (
-      <div
-        ref={setNodeRef}
-        id={`slot-${index}`}
-        className={`w-full aspect-square bg-white/90 rounded-sm shadow-sm border-2 border-transparent flex items-center justify-center transition ${isOver ? "border-sky-400 scale-105" : ""}`}
-      >
-        {children && (
-          <div
-            ref={currentItem?.isPlaceholder ? undefined : setDraggableRef}
-            {...(currentItem?.isPlaceholder ? {} : listeners)}
-            {...(currentItem?.isPlaceholder ? {} : attributes)}
-            className={currentItem?.isPlaceholder ? '' : 'cursor-grab active:cursor-grabbing'}
-          >
-            {children}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={pointerWithin}
-      onDragStart={(e) => {
-        const charmInCatalog = charmData.find((c) => c.id === e.active.id);
-        const charmInBracelet = bracelet.find((b) => b && b.id === e.active.id);
-        setActiveCharm(charmInCatalog || charmInBracelet || null);
-      }}
-      onDragEnd={handleDragEnd}
+    <div
+      className="h-screen bg-gradient-to-br from-sky-50 via-sky-100 to-white flex flex-col overflow-hidden select-none touch-none"
+      onContextMenu={(e) => e.preventDefault()}
     >
-
-      <div
-        className="h-screen bg-gradient-to-br from-sky-50 via-sky-100 to-white flex flex-col overflow-hidden select-none touch-none"
-        onContextMenu={(e) => e.preventDefault()}
-      >
 
         <header className="bg-white/90 backdrop-blur sticky top-0 z-50 p-3 flex justify-between items-center flex-shrink-0">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-sky-600 to-sky-400 bg-clip-text text-transparent">
@@ -796,13 +694,87 @@ const handleFormSubmit = async (e: React.FormEvent) => {
               </div>
             </div>
 
-            <div className="w-full overflow-x-auto sm:overflow-hidden">
-              <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${maxSlots}, 1fr)`, alignItems: 'center' }}>
+            <div className="w-full overflow-x-auto pb-4" style={{ touchAction: isDraggingCharm ? 'none' : 'pan-x' }}>
+              <div className="grid gap-1 min-w-max" style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}>
                 {Array.from({ length: maxSlots }, (_, i) => (
                   <div key={i} className="p-0 min-w-[60px]">
-                    <DroppableSlot index={i}>
-                      {bracelet[i] && <DraggableCharm charm={bracelet[i]} compact={true} />}
-                    </DroppableSlot>
+                    <div
+                      className="w-full aspect-square bg-white/90 rounded-sm shadow-sm border-2 border-transparent flex items-center justify-center relative"
+                      data-slot-index={i}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => {
+                        if (draggingBraceletIndex !== null && draggingBraceletIndex !== i) {
+                          handleSwapBraceletCharms(draggingBraceletIndex, i);
+                        }
+                      }}
+                    >
+                      {bracelet[i] && (
+                        <>
+                          {selectedBraceletIndex === i && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveCharmFromBracelet(i);
+                              }}
+                              className="absolute right-1 top-1 z-10 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow"
+                              aria-label="Remove charm"
+                            >
+                              ×
+                            </button>
+                          )}
+                          <div
+                            draggable={!!bracelet[i] && !bracelet[i]?.isPlaceholder}
+                            onClick={() => setSelectedBraceletIndex(i)}
+                            onDragStart={(e) => {
+                              if (!bracelet[i]?.isPlaceholder) {
+                                setDraggingBraceletIndex(i);
+                                setSelectedBraceletIndex(i);
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData('text/plain', String(i));
+                              }
+                            }}
+                            onDragEnd={() => {
+                              setDraggingBraceletIndex(null);
+                            }}
+                            onTouchStart={(e) => {
+                              if (!bracelet[i]?.isPlaceholder) {
+                                setTouchDraggingIndex(i);
+                                setSelectedBraceletIndex(i);
+                                setIsDraggingCharm(true);
+                              }
+                            }}
+                            onTouchMove={() => {
+                              // Touch move is handled by touchAction CSS property
+                            }}
+                            onTouchEnd={(e) => {
+                              if (touchDraggingIndex !== null) {
+                                const touch = e.changedTouches[0];
+                                const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                                
+                                if (element) {
+                                  // Find the parent slot element
+                                  let slotElement = element.closest('[data-slot-index]') as HTMLElement;
+                                  
+                                  if (slotElement) {
+                                    const targetIndex = parseInt(slotElement.getAttribute('data-slot-index') || '-1', 10);
+                                    if (targetIndex !== -1 && targetIndex !== touchDraggingIndex) {
+                                      handleSwapBraceletCharms(touchDraggingIndex, targetIndex);
+                                    }
+                                  }
+                                }
+                              }
+                              setTouchDraggingIndex(null);
+                              setIsDraggingCharm(false);
+                            }}
+                            style={{ touchAction: isDraggingCharm ? 'none' : 'pan-x', userSelect: 'none' }}
+                            className="w-full h-full flex items-center justify-center"
+                          >
+                            <DraggableCharm charm={bracelet[i]} compact={true} interactive={false} />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -920,13 +892,13 @@ const handleFormSubmit = async (e: React.FormEvent) => {
           {/* CHARM GRID */}
           <div
             ref={charmsContainerRef}
-            className="flex-1 bg-white overflow-y-auto rounded-lg shadow-md m-3 mt-2 p-3 flex flex-col touch-pan-y"
-            style={{ touchAction: activeCharm ? "none" : "pan-y" }}
+            className="flex-1 bg-white overflow-y-auto rounded-lg shadow-md m-3 mt-2 p-6 flex flex-col touch-pan-y"
+            style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
           >
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
               {filteredCharms.map((charm) => (
-                <div key={charm.id} className="relative group">
-                  <DraggableCharm charm={charm} />
+                <div key={charm.id} className="relative group pointer-events-auto">
+                  <DraggableCharm charm={charm} onTap={handleAddCharmToBracelet} />
                   <div className="absolute right-1 bottom-1 flex flex-col gap-1 items-end invisible group-hover:visible">
                     <div className="flex gap-1">
                       {ownerMode && <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>}
@@ -961,6 +933,7 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                 </div>
               ))}
             </div>
+            <div className="h-8" />
           </div>
         </div>
 
@@ -1177,10 +1150,6 @@ const handleFormSubmit = async (e: React.FormEvent) => {
           </div>
         )}
 
-        <DragOverlay>
-          {activeCharm ? <Image src={activeCharm.img} alt={activeCharm.filename} width={70} height={70} unoptimized draggable={false} /> : null}
-        </DragOverlay>
       </div>
-    </DndContext>
   );
 }

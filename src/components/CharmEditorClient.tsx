@@ -694,7 +694,15 @@ const handleFormSubmit = async (e: React.FormEvent) => {
               </div>
             </div>
 
-            <div className="w-full overflow-x-auto pb-4" style={{ touchAction: isDraggingCharm ? 'none' : 'pan-x' }}>
+            <div
+              className="w-full overflow-x-auto pb-4"
+              style={{ touchAction: isDraggingCharm ? 'none' : 'pan-x' }}
+              onTouchMove={(e) => {
+                if (isDraggingCharm) {
+                  e.preventDefault();
+                }
+              }}
+            >
               <div className="grid gap-1 min-w-max" style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}>
                 {Array.from({ length: maxSlots }, (_, i) => (
                   <div key={i} className="p-0 min-w-[60px]">
@@ -739,16 +747,23 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                             }}
                             onTouchStart={(e) => {
                               if (!bracelet[i]?.isPlaceholder) {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 setTouchDraggingIndex(i);
                                 setSelectedBraceletIndex(i);
                                 setIsDraggingCharm(true);
                               }
                             }}
-                            onTouchMove={() => {
-                              // Touch move is handled by touchAction CSS property
+                            onTouchMove={(e) => {
+                              if (touchDraggingIndex !== null) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }
                             }}
                             onTouchEnd={(e) => {
                               if (touchDraggingIndex !== null) {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 const touch = e.changedTouches[0];
                                 const element = document.elementFromPoint(touch.clientX, touch.clientY);
                                 
@@ -764,6 +779,10 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                                   }
                                 }
                               }
+                              setTouchDraggingIndex(null);
+                              setIsDraggingCharm(false);
+                            }}
+                            onTouchCancel={() => {
                               setTouchDraggingIndex(null);
                               setIsDraggingCharm(false);
                             }}

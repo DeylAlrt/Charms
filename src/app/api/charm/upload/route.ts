@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { isAdminRequest } from '@/lib/adminAuth';
 
 const allowedExt = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 
@@ -13,6 +14,10 @@ function isSafeFilename(name: string) {
 }
 
 export async function POST(req: Request) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const form = await req.formData();
     const file = form.get('file') as File | null;

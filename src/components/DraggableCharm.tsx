@@ -1,14 +1,17 @@
 import Image from "next/image";
+import { isCharmSoldOut, type Charm } from './charmEditorUtils';
 
 type DraggableCharmProps = {
-  charm: any;
+  charm: Charm;
   compact?: boolean;
-  onTap?: (charm: any) => void;
+  onTap?: (charm: Charm) => void;
   interactive?: boolean;
+  /** Pass explicitly once the caller knows the admin-flagged status; falls back to the filename convention if omitted. */
+  soldOut?: boolean;
 };
 
-export default function DraggableCharm({ charm, compact = false, onTap, interactive = true }: DraggableCharmProps) {
-  const isSoldOut = charm.filename.toLowerCase().includes("sold");
+export default function DraggableCharm({ charm, compact = false, onTap, interactive = true, soldOut }: DraggableCharmProps) {
+  const isSoldOut = soldOut ?? isCharmSoldOut(charm.filename, {});
 
   return (
     <button

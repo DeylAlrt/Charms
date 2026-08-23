@@ -80,6 +80,14 @@ export const getCategory = (filename: string): string => {
   return "All";
 };
 
+/**
+ * A charm is sold out if an admin explicitly flagged it via the "Out of
+ * stock" checkbox, or (for backward compatibility) if its filename still
+ * uses the older naming convention of containing "sold".
+ */
+export const isCharmSoldOut = (filename: string, outOfStock: Record<string, boolean>): boolean =>
+  !!outOfStock[filename] || filename.toLowerCase().includes("sold");
+
 export const getPlaceholderCharm = (color: BaseColor) => ({
   id: `placeholder-${color.toLowerCase()}`,
   img: `/charms/${color}_Plain_Charm.png`,

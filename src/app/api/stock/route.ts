@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import path from 'path';
 import fs from 'fs';
+import { isAdminRequest } from '@/lib/adminAuth';
 
 const SPREADSHEET_ID = '1MUr3yoQFTFwuRd0cEOKOHF8ke9Nd1wVYjOhnBySAvP4';
 const STOCK_SHEET = 'Stock';
@@ -126,7 +127,7 @@ async function handleStockUpdate(data: { charmName: string; quantity: number }) 
   });
 
   const timestamp = new Date().toISOString();
-  const newQty = Math.max(0, parseInt(quantity) || 0);
+  const newQty = Math.max(0, Number(quantity) || 0);
 
   if (rowIndex > 0) {
     // Update existing row
@@ -215,9 +216,12 @@ async function handleOrderSubmission(orderData: any) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    // Check if this is a stock update
+
+    // Check if this is a stock update (admin-only; order submission below stays public)
     if (body.charmName !== undefined && body.quantity !== undefined) {
+      if (!isAdminRequest(request)) {
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      }
       return await handleStockUpdate(body);
     }
     

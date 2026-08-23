@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import emailjs from '@emailjs/browser';
 import DraggableCharm from './DraggableCharm';
-import { LETTER_ORDER, baseColorOptions, getCategory, getPlaceholderCharm, getPrice, type BaseColor, type Charm } from './charmEditorUtils';
+import { LETTER_ORDER, baseColorOptions, getCategory, getPlaceholderCharm, getPrice, isCharmSoldOut, type BaseColor, type Charm } from './charmEditorUtils';
 
 type Props = {
   charmFiles: string[];
@@ -97,6 +97,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const availableBaseColors = Object.keys(colorStatuses).filter(c => colorStatuses[c]);
   const [charmStock, setCharmStock] = useState<Record<string, number>>({});
   const [stockLoading, setStockLoading] = useState<Record<string, boolean>>({});
+  const [outOfStockMap, setOutOfStockMap] = useState<Record<string, boolean>>({});
   const charmsContainerRef = useRef<HTMLDivElement | null>(null);
 
   // ---------------------------------------------------------------------
@@ -144,6 +145,22 @@ export default function CharmEditorClient({ charmFiles }: Props) {
         }
       })
       .catch(err => console.error('Error loading stock:', err));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/charm-status')
+      .then(r => r.json())
+      .then(setOutOfStockMap)
+      .catch(err => console.error('Error loading out-of-stock status:', err));
+  }, []);
+
+  // Re-enter owner mode automatically if this browser already has a valid
+  // admin session (e.g. after a page refresh), without re-prompting.
+  useEffect(() => {
+    fetch('/api/admin/session')
+      .then(r => r.json())
+      .then(data => setOwnerMode(!!data.authenticated))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -514,6 +531,48 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     }
   };
 
+  const toggleOutOfStock = async (filename: string) => {
+    const wasOutOfStock = !!outOfStockMap[filename];
+    const nextOutOfStock = !wasOutOfStock;
+    setOutOfStockMap(prev => ({ ...prev, [filename]: nextOutOfStock }));
+    try {
+      const res = await fetch('/api/charm-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, outOfStock: nextOutOfStock }),
+      });
+      if (!res.ok) throw new Error('Request failed');
+    } catch {
+      setOutOfStockMap(prev => ({ ...prev, [filename]: wasOutOfStock }));
+      alert('Failed to update out-of-stock status');
+    }
+  };
+
+  /**
+   * Prompts for the admin password and verifies it against the server —
+   * the password itself never appears in the client bundle, only the
+   * pass/fail result. On success the server sets an HttpOnly session
+   * cookie, so client-side code (or the console) never sees the token either.
+   */
+  const handleOwnerLogin = async () => {
+    const password = window.prompt('Enter password:');
+    if (!password) return;
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        setOwnerMode(true);
+      } else {
+        alert('Wrong password');
+      }
+    } catch {
+      alert('Login failed. Please try again.');
+    }
+  };
+
   const handleRemoveCharmFromBracelet = (index: number) => {
     setBracelet(prev => {
       const copy = [...prev];
@@ -542,7 +601,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   };
 
   const handleAddCharmToBracelet = (charm: Charm) => {
-    if (!charm || charm.filename.toLowerCase().includes("sold")) return;
+    if (!charm || isCharmSoldOut(charm.filename, outOfStockMap)) return;
 
     setBracelet(prev => {
       const copy = [...prev];
@@ -585,7 +644,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
               <select value={selectedBaseColor} onChange={(e) => setSelectedBaseColor(e.target.value as BaseColor)} className="text-xs px-2 py-1 border rounded-md bg-white text-black capitalize">
                 {availableBaseColors.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-              <button onClick={() => { const pass = window.prompt('Enter password:'); if (pass === 'Navillera1101') setOwnerMode(true); else alert('Wrong password'); }} style={{opacity: 0, width: '24px', height: '24px', border: 'none', background: 'none'}}></button>
+              <button onClick={handleOwnerLogin} style={{opacity: 0, width: '24px', height: '24px', border: 'none', background: 'none'}}></button>
             </div>
             <div className="flex items-center gap-2">
               <div className="text-sm md:text-lg font-bold text-sky-600">
@@ -831,14 +890,25 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
             {filteredCharms.map((charm) => {
               const stockKey = stripExtension(charm.filename);
+              const soldOut = isCharmSoldOut(charm.filename, outOfStockMap);
               return (
                 <div key={charm.id} className="relative group pointer-events-auto">
-                  <DraggableCharm charm={charm} onTap={handleAddCharmToBracelet} />
+                  <DraggableCharm charm={charm} onTap={handleAddCharmToBracelet} soldOut={soldOut} />
                   <div className="absolute right-1 bottom-1 flex flex-col gap-1 items-end invisible group-hover:visible">
                     <div className="flex gap-1">
                       {ownerMode && <button onClick={() => deleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>}
                       {ownerMode && <button onClick={() => openRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>}
                     </div>
+                    {ownerMode && (
+                      <label className="flex items-center gap-1 bg-white/90 px-1 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!outOfStockMap[charm.filename]}
+                          onChange={() => toggleOutOfStock(charm.filename)}
+                        />
+                        <span className="text-[9px] text-gray-600">Out of stock</span>
+                      </label>
+                    )}
                     {ownerMode && (
                       <div className="flex items-center gap-1 bg-white/90 px-1 rounded">
                         <span className="text-[9px] text-gray-600">Stock:</span>

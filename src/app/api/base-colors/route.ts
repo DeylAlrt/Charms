@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { isAdminRequest } from '@/lib/adminAuth';
 
 const filePath = path.join(process.cwd(), 'base-colors.json');
 
@@ -47,6 +48,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { color, soldOut } = await request.json();
     if (!color || typeof soldOut !== 'boolean') {

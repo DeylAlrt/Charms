@@ -73,8 +73,6 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const [cartOpen, setCartOpen] = useState(false);
   const braceletRef = useRef<HTMLDivElement>(null);
   const charmsContainerRef = useRef<HTMLDivElement | null>(null);
-  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [checkoutFormOpen, setCheckoutFormOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -121,12 +119,6 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       charmsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [activeCategory]);
-
-  useEffect(() => {
-    return () => {
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    };
-  }, []);
 
   const getDeliveryFee = (place: string): number => {
     if (place.includes('Mall of the Emirates Metro') || place.includes('DMCC Metro')) return 5;
@@ -565,12 +557,10 @@ const handleFormSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div
-              className="w-full overflow-x-auto pb-4"
-              style={{ touchAction: isDraggingCharm ? 'none' : 'pan-x' }}
+              className="w-full overflow-x-auto pb-4 bracelet-scrollbar"
+              style={{ touchAction: 'none' }}
               onTouchMove={(e) => {
-                if (isDraggingCharm) {
-                  e.preventDefault();
-                }
+                e.preventDefault();
               }}
             >
               <div className="grid gap-1 min-w-max" style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}>
@@ -617,43 +607,20 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                             }}
                             onTouchStart={(e) => {
                               if (!bracelet[i]?.isPlaceholder) {
-                                const touch = e.touches[0];
-                                touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTouchDraggingIndex(i);
                                 setSelectedBraceletIndex(i);
-                                // Arm drag-to-reorder only after a brief hold, so a quick
-                                // swipe is left alone and scrolls the strip normally.
-                                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                                longPressTimerRef.current = setTimeout(() => {
-                                  longPressTimerRef.current = null;
-                                  setTouchDraggingIndex(i);
-                                  setIsDraggingCharm(true);
-                                }, 200);
+                                setIsDraggingCharm(true);
                               }
                             }}
                             onTouchMove={(e) => {
                               if (touchDraggingIndex !== null && isDraggingCharm) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                return;
-                              }
-                              // Drag not armed yet - if the finger has moved, this is a
-                              // scroll gesture, so cancel the pending long-press.
-                              if (longPressTimerRef.current && touchStartPosRef.current) {
-                                const touch = e.touches[0];
-                                const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
-                                const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
-                                if (dx > 10 || dy > 10) {
-                                  clearTimeout(longPressTimerRef.current);
-                                  longPressTimerRef.current = null;
-                                }
                               }
                             }}
                             onTouchEnd={(e) => {
-                              if (longPressTimerRef.current) {
-                                clearTimeout(longPressTimerRef.current);
-                                longPressTimerRef.current = null;
-                              }
-                              touchStartPosRef.current = null;
                               if (touchDraggingIndex !== null && isDraggingCharm) {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -676,15 +643,10 @@ const handleFormSubmit = async (e: React.FormEvent) => {
                               setIsDraggingCharm(false);
                             }}
                             onTouchCancel={() => {
-                              if (longPressTimerRef.current) {
-                                clearTimeout(longPressTimerRef.current);
-                                longPressTimerRef.current = null;
-                              }
-                              touchStartPosRef.current = null;
                               setTouchDraggingIndex(null);
                               setIsDraggingCharm(false);
                             }}
-                            style={{ touchAction: isDraggingCharm ? 'none' : 'pan-x', userSelect: 'none' }}
+                            style={{ touchAction: 'none', userSelect: 'none' }}
                             className="w-full h-full flex items-center justify-center"
                           >
                             <DraggableCharm charm={bracelet[i]} compact={true} interactive={false} />

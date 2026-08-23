@@ -10,7 +10,7 @@ function isSafeFilename(name: string) {
   if (name.includes('/') || name.includes('\\')) return false;
   const ext = path.extname(name).toLowerCase();
   if (!allowedExt.includes(ext)) return false;
-  return /^[\w \-.]+\.[a-z0-9]+$/i.test(name);
+  return /^[\w \-.\(\)]+\.[a-z0-9]+$/i.test(name);
 }
 
 export async function POST(req: Request) {

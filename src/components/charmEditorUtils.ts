@@ -3,6 +3,16 @@ export const LETTER_ORDER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 export const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Brown", "Red", "Purple", "Pink"] as const;
 export type BaseColor = typeof baseColorOptions[number];
 
+export type Charm = {
+  id: string;
+  img: string;
+  filename: string;
+  category?: string;
+  displayName?: string;
+  catalogItem?: boolean;
+  isPlaceholder?: boolean;
+};
+
 export const getPrice = (filename: string): number => {
   const lower = filename.toLowerCase();
 

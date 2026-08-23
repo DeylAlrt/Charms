@@ -66,6 +66,16 @@ body {
   border: 3px solid #e5e7eb;
 }
 
+.bracelet-touch-scrollbar {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .bracelet-touch-scrollbar {
+    display: block;
+  }
+}
+
 .screenshot-safe-zone * {
   color: #000 !important;
   background-image: none !important;

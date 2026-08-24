@@ -121,6 +121,42 @@ export default function CharmEditorClient({ charmFiles }: Props) {
   const [meetupPlace, setMeetupPlace] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
 
+  // Pay on pickup/delivery (existing flow, unchanged) vs. pay online now via
+  // Ziina, embedded in an iframe right on this page.
+  const [paymentMethod, setPaymentMethod] = useState<'pickup' | 'online'>('pickup');
+  const [ziinaSubmitting, setZiinaSubmitting] = useState(false);
+  const [ziinaEmbedUrl, setZiinaEmbedUrl] = useState<string | null>(null);
+  const [ziinaResult, setZiinaResult] = useState<'success' | 'failed' | 'canceled' | null>(null);
+  const ziinaIframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Listens for Ziina's embedded-checkout postMessage events. The order
+  // itself isn't confirmed here — that only happens once the Ziina webhook
+  // re-verifies payment status server-side — this just drives the UI.
+  useEffect(() => {
+    function handleZiinaMessage(event: MessageEvent) {
+      const iframe = ziinaIframeRef.current;
+      if (!iframe || event.source !== iframe.contentWindow) return;
+      if (event.origin !== 'https://pay.ziina.com') return;
+
+      const { type, data } = (event.data || {}) as { type?: string; data?: { status?: string } };
+      if (type !== 'ZIINA_PAYMENT_STATUS_CHANGE') return;
+
+      if (data?.status === 'COMPLETED') {
+        setZiinaResult('success');
+        setZiinaEmbedUrl(null);
+      } else if (data?.status === 'FAILED') {
+        setZiinaResult('failed');
+        setZiinaEmbedUrl(null);
+      } else if (data?.status === 'CANCELED') {
+        setZiinaResult('canceled');
+        setZiinaEmbedUrl(null);
+      }
+    }
+
+    window.addEventListener('message', handleZiinaMessage);
+    return () => window.removeEventListener('message', handleZiinaMessage);
+  }, []);
+
   useEffect(() => {
     fetch('/api/base-colors')
       .then(r => r.json())
@@ -284,6 +320,42 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       .join(', ');
     const baseUrl = window.location.origin;
 
+    if (paymentMethod === 'online') {
+      setZiinaSubmitting(true);
+      try {
+        const response = await fetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName,
+            phone: phoneNumber,
+            pickupTime,
+            meetupPlace,
+            deliveryDate,
+            braceletSize: `${maxSlots} charms`,
+            baseColor: selectedBaseColor,
+            subtotal,
+            deliveryFee,
+            total,
+            charmsList,
+            emailFields: buildCharmEmailFields(baseUrl),
+          }),
+        });
+        const data = await response.json();
+        if (!data.success) {
+          alert('❌ Could not start online payment: ' + data.error);
+          return;
+        }
+        setZiinaEmbedUrl(data.embedded_url);
+      } catch (error) {
+        alert('❌ Could not start online payment: ' + getErrorMessage(error));
+      } finally {
+        setZiinaSubmitting(false);
+      }
+      return;
+    }
+
+    // --- Pay on pickup/delivery: existing flow, unchanged below ---
     const emailParams = {
       to_email: 'Navilleracharmstudio@gmail.com',
       customer_name: customerName,
@@ -1117,6 +1189,29 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-black mb-2">Payment Method</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('pickup')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-semibold transition ${
+                      paymentMethod === 'pickup' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-black border-sky-200'
+                    }`}
+                  >
+                    Pay on Pickup/Delivery
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('online')}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-semibold transition ${
+                      paymentMethod === 'online' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-black border-sky-200'
+                    }`}
+                  >
+                    Pay Online Now
+                  </button>
+                </div>
+              </div>
               <div className="border-t border-sky-200 pt-4 mt-4">
                 <h3 className="text-lg font-semibold text-black mb-3">Order Summary</h3>
                 <div className="space-y-2 text-sm">
@@ -1138,11 +1233,79 @@ export default function CharmEditorClient({ charmFiles }: Props) {
                 <button type="button" onClick={() => setCheckoutFormOpen(false)} className="flex-1 bg-gray-400 hover:bg-gray-500 text-black px-4 py-3 rounded-lg transition text-lg">
                   Back
                 </button>
-                <button type="submit" className="flex-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-lg transition text-lg font-semibold">
-                  Submit Order
+                <button
+                  type="submit"
+                  disabled={ziinaSubmitting}
+                  className="flex-1 bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-lg transition text-lg font-semibold disabled:opacity-60"
+                >
+                  {ziinaSubmitting ? 'Starting payment…' : paymentMethod === 'online' ? 'Continue to Payment' : 'Submit Order'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {ziinaEmbedUrl && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60]">
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-white rounded-lg shadow-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setZiinaEmbedUrl(null)}
+              className="absolute top-2 right-2 z-10 bg-gray-200 hover:bg-gray-300 rounded-full w-8 h-8 flex items-center justify-center text-black"
+              aria-label="Close payment"
+            >
+              ✕
+            </button>
+            <iframe
+              ref={ziinaIframeRef}
+              src={`${ziinaEmbedUrl}?version=latest`}
+              width={500}
+              height={820}
+              style={{ maxWidth: '92vw', maxHeight: '85vh', border: 'none' }}
+              allow="payment"
+              title="Ziina Payment"
+            />
+          </div>
+        </div>
+      )}
+
+      {ziinaResult && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60]">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setZiinaResult(null)} />
+          <div className="relative bg-white rounded-lg shadow-lg p-6 w-80 text-center">
+            {ziinaResult === 'success' ? (
+              <>
+                <p className="text-lg font-semibold text-green-700 mb-2">✅ Payment successful!</p>
+                <p className="text-sm text-black mb-4">Your order has been confirmed. If you have any concerns, DM us on Instagram: @navilleracharms.ae</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-semibold text-red-700 mb-2">
+                  {ziinaResult === 'canceled' ? '⚠️ Payment canceled' : '❌ Payment failed'}
+                </p>
+                <p className="text-sm text-black mb-4">You can try again, or switch to Pay on Pickup/Delivery instead.</p>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                const wasSuccess = ziinaResult === 'success';
+                setZiinaResult(null);
+                if (wasSuccess) {
+                  setCheckoutFormOpen(false);
+                  setCustomerName('');
+                  setPhoneNumber('');
+                  setPickupTime('');
+                  setMeetupPlace('');
+                  setDeliveryDate('');
+                }
+              }}
+              className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-semibold"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

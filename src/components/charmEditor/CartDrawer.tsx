@@ -235,6 +235,30 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
               <textarea value={checkout.form.notes} onChange={e => checkout.form.setNotes(e.target.value)} placeholder="Anything else we should know?" rows={3} className="px-4 py-3 border-2 border-navy rounded-xl text-navy outline-none focus:border-accent-blue resize-none" />
             </label>
 
+            <div className="flex flex-col gap-1.5 text-sm font-semibold text-gray-700">
+              Payment Method
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => checkout.setPaymentMethod('pickup')}
+                  className={`flex-1 min-h-11 px-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    checkout.paymentMethod === 'pickup' ? 'bg-navy text-white border-navy' : 'bg-white text-navy border-sky-tint'
+                  }`}
+                >
+                  Pay on Pickup/Delivery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => checkout.setPaymentMethod('online')}
+                  className={`flex-1 min-h-11 px-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    checkout.paymentMethod === 'online' ? 'bg-navy text-white border-navy' : 'bg-white text-navy border-sky-tint'
+                  }`}
+                >
+                  Pay Online Now
+                </button>
+              </div>
+            </div>
+
             <div className="border-t border-navy/10 pt-3.5">
               <h3 className="font-serif italic text-navy mb-2.5">Price Details</h3>
               <div className="flex justify-between text-navy mb-1.5">
@@ -261,8 +285,12 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
               <button type="button" onClick={checkout.backToItems} className="flex-1 min-h-12 rounded-full border border-pastel-blue bg-white text-navy font-semibold hover:bg-sky-tint-light transition-colors">
                 Back
               </button>
-              <button type="submit" disabled={checkout.submitting} className="flex-[2] min-h-12 rounded-full bg-navy text-white font-bold hover:bg-pastel-blue hover:text-navy transition-colors disabled:opacity-70">
-                {checkout.submitting ? 'Sending...' : 'Submit Order'}
+              <button type="submit" disabled={checkout.submitting || checkout.ziinaSubmitting} className="flex-[2] min-h-12 rounded-full bg-navy text-white font-bold hover:bg-pastel-blue hover:text-navy transition-colors disabled:opacity-70">
+                {checkout.ziinaSubmitting
+                  ? 'Starting payment...'
+                  : checkout.paymentMethod === 'online'
+                    ? 'Continue to Payment'
+                    : checkout.submitting ? 'Sending...' : 'Submit Order'}
               </button>
             </div>
 
@@ -274,6 +302,59 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
           </form>
         )}
       </aside>
+
+      {checkout.ziinaEmbedUrl && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60]">
+          <div className="absolute inset-0 bg-navy/60" />
+          <div className="relative bg-white rounded-lg shadow-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => checkout.setZiinaEmbedUrl(null)}
+              className="absolute top-2 right-2 z-10 bg-sky-tint-light hover:bg-sky-tint rounded-full w-8 h-8 flex items-center justify-center text-navy"
+              aria-label="Close payment"
+            >
+              &times;
+            </button>
+            <iframe
+              ref={checkout.ziinaIframeRef}
+              src={`${checkout.ziinaEmbedUrl}?version=latest`}
+              width={500}
+              height={820}
+              style={{ maxWidth: '92vw', maxHeight: '85vh', border: 'none' }}
+              allow="payment"
+              title="Ziina Payment"
+            />
+          </div>
+        </div>
+      )}
+
+      {checkout.ziinaResult && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60]">
+          <div className="absolute inset-0 bg-navy/60" onClick={checkout.closeZiinaResult} />
+          <div className="relative bg-white rounded-lg shadow-lg p-6 w-80 text-center">
+            {checkout.ziinaResult === 'success' ? (
+              <>
+                <p className="text-lg font-semibold text-success mb-2">Payment successful!</p>
+                <p className="text-sm text-navy mb-4">Your order has been confirmed. If you have any concerns, DM us on Instagram: @navilleracharms.ae</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-semibold text-danger mb-2">
+                  {checkout.ziinaResult === 'canceled' ? 'Payment canceled' : 'Payment failed'}
+                </p>
+                <p className="text-sm text-navy mb-4">You can try again, or switch to Pay on Pickup/Delivery instead.</p>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={checkout.closeZiinaResult}
+              className="bg-navy hover:bg-pastel-blue hover:text-navy text-white px-4 py-2 rounded-full font-semibold transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

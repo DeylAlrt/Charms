@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import emailjs from '@emailjs/browser';
 import type { BaseColor, Charm } from '../charmEditorUtils';
 
@@ -79,12 +79,48 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const [orderStatus, setOrderStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Pay on pickup/delivery (the flow above) vs. pay online now via Ziina,
+  // embedded in an iframe right in the drawer.
+  const [paymentMethod, setPaymentMethod] = useState<'pickup' | 'online'>('pickup');
+  const [ziinaSubmitting, setZiinaSubmitting] = useState(false);
+  const [ziinaEmbedUrl, setZiinaEmbedUrl] = useState<string | null>(null);
+  const [ziinaResult, setZiinaResult] = useState<'success' | 'failed' | 'canceled' | null>(null);
+  const ziinaIframeRef = useRef<HTMLIFrameElement | null>(null);
+
   useEffect(() => {
     emailjs.init('-2tCjwFJUnT97N93w'); // EmailJS Public Key
   }, []);
 
   useEffect(() => {
     setPromoLocked(hasOrderedBefore());
+  }, []);
+
+  // Listens for Ziina's embedded-checkout postMessage events. The order
+  // itself isn't confirmed here — that only happens once the Ziina webhook
+  // re-verifies payment status server-side — this just drives the UI.
+  useEffect(() => {
+    function handleZiinaMessage(event: MessageEvent) {
+      const iframe = ziinaIframeRef.current;
+      if (!iframe || event.source !== iframe.contentWindow) return;
+      if (event.origin !== 'https://pay.ziina.com') return;
+
+      const { type, data } = (event.data || {}) as { type?: string; data?: { status?: string } };
+      if (type !== 'ZIINA_PAYMENT_STATUS_CHANGE') return;
+
+      if (data?.status === 'COMPLETED') {
+        setZiinaResult('success');
+        setZiinaEmbedUrl(null);
+      } else if (data?.status === 'FAILED') {
+        setZiinaResult('failed');
+        setZiinaEmbedUrl(null);
+      } else if (data?.status === 'CANCELED') {
+        setZiinaResult('canceled');
+        setZiinaEmbedUrl(null);
+      }
+    }
+
+    window.addEventListener('message', handleZiinaMessage);
+    return () => window.removeEventListener('message', handleZiinaMessage);
   }, []);
 
   const openCart = () => {
@@ -175,6 +211,43 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       .join(', ');
     const baseUrl = window.location.origin;
 
+    if (paymentMethod === 'online') {
+      setZiinaSubmitting(true);
+      try {
+        const response = await fetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName,
+            phone: phoneNumber,
+            pickupTime,
+            meetupPlace,
+            deliveryDate,
+            braceletSize: `${maxSlots} charms`,
+            baseColor: selectedBaseColor,
+            subtotal: subtotalAfterDiscount,
+            deliveryFee,
+            total,
+            charmsList,
+            emailFields: buildCharmEmailFields(baseUrl),
+          }),
+        });
+        const data = await response.json();
+        if (!data.success) {
+          setOrderStatus({ text: 'Could not start online payment: ' + data.error, type: 'error' });
+          return;
+        }
+        setZiinaEmbedUrl(data.embedded_url);
+      } catch (error) {
+        setOrderStatus({ text: 'Could not start online payment: ' + getErrorMessage(error), type: 'error' });
+      } finally {
+        setZiinaSubmitting(false);
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // --- Pay on pickup/delivery: existing flow, unchanged below ---
     const emailParams = {
       to_email: 'Navilleracharmstudio@gmail.com',
       customer_name: customerName,
@@ -243,6 +316,15 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     }
   };
 
+  const closeZiinaResult = () => {
+    const wasSuccess = ziinaResult === 'success';
+    setZiinaResult(null);
+    if (wasSuccess) {
+      resetForm();
+      setDrawerOpen(false);
+    }
+  };
+
   return {
     drawerOpen,
     view,
@@ -250,6 +332,14 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     closeDrawer,
     goToCheckout,
     backToItems,
+    paymentMethod,
+    setPaymentMethod,
+    ziinaSubmitting,
+    ziinaEmbedUrl,
+    setZiinaEmbedUrl,
+    ziinaResult,
+    ziinaIframeRef,
+    closeZiinaResult,
     form: {
       customerName, setCustomerName,
       phoneNumber, setPhoneNumber,

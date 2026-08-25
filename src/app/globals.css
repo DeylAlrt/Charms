@@ -2,14 +2,32 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1a2a44;
 }
 
+/*
+ * Brand palette, matched to navilleracharms.vercel.app (Css_Folder/navbar.css
+ * and collection.css there) so this builder reads as the same site rather
+ * than generic Tailwind blue.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-poppins);
+  --font-serif: var(--font-source-serif);
+
+  --color-navy: #1c2b4b;
+  --color-navy-deep: #0f2a4f;
+  --color-accent-blue: #2d79ba;
+  --color-pastel-blue: #a7c7e7;
+  --color-sky-tint: #d6eaff;
+  --color-sky-tint-light: #eaf4ff;
+  --color-pink: #ff9ec6;
+  --color-pink-soft: #ffe1e6;
+  --color-cream: #fcf5be;
+  --color-success: #2e7d4f;
+  --color-danger: #d1293d;
+  --color-muted: #5a6b85;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,7 +40,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 /* FORCE RGB COLORS FOR SCREENSHOT COMPATIBILITY */
@@ -34,7 +52,7 @@ body {
 /* Fallback for Next.js 15 default background */
 :root {
   --background: rgb(255, 255, 255);
-  --foreground: rgb(0, 0, 0);
+  --foreground: rgb(26, 42, 68);
 }
 
 /* This forces the browser to convert all modern colors to standard RGB */
@@ -45,35 +63,40 @@ body {
   }
 }
 
-.bracelet-scrollbar {
-  scrollbar-width: auto;
-  scrollbar-color: #0284c7 #e5e7eb;
+/*
+ * Hides the native scrollbar on an otherwise-scrollable element. Used on the
+ * bracelet strip (which draws its own draggable bar instead — see
+ * BraceletStrip.tsx — so the native one doesn't double up with it, which
+ * happened on devices that report a coarse pointer but still render a real
+ * OS scrollbar, e.g. a Windows touchscreen) and on the category row (which
+ * scrolls natively but hides the bar for a cleaner look, matching the
+ * jump-nav row on navilleracharms.vercel.app's collection page).
+ */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.bracelet-scrollbar::-webkit-scrollbar {
-  height: 14px;
-  display: block;
-}
-
-.bracelet-scrollbar::-webkit-scrollbar-track {
-  background: #e5e7eb;
-  border-radius: 9999px;
-}
-
-.bracelet-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #0284c7;
-  border-radius: 9999px;
-  border: 3px solid #e5e7eb;
-}
-
-.bracelet-touch-scrollbar {
+.no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
-@media (pointer: coarse) {
-  .bracelet-touch-scrollbar {
-    display: block;
-  }
+/* The fluttering logo that rides the scrollbar thumb's leading edge, same as
+   the .jumpnav-scrollbar__butterfly on the collection page. */
+@keyframes bracelet-scrollbar-flutter {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-8deg); }
+  50%      { transform: translate(-50%, -65%) rotate(8deg); }
+}
+
+.bracelet-scrollbar-butterfly {
+  position: absolute;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(28, 43, 75, 0.25));
+  animation: bracelet-scrollbar-flutter 1.6s ease-in-out infinite;
 }
 
 .screenshot-safe-zone * {

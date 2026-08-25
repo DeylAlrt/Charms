@@ -24,7 +24,8 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
         className={`
           relative overflow-hidden rounded-lg shadow-md flex flex-col items-center
           ${compact ? 'p-0' : 'p-2'}
-          ${isSoldOut ? 'bg-gray-300 border-2 border-gray-400' : 'bg-white'}
+          bg-white
+          ${isSoldOut ? 'grayscale opacity-60' : ''}
         `}
       >
         <Image
@@ -32,11 +33,7 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
           alt={charm.filename}
           width={120}
           height={120}
-          className={`
-            w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain
-            ${isSoldOut ? 'opacity-30' : 'opacity-100'}
-            select-none
-          `}
+          className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain select-none"
           unoptimized
           draggable={false}
           style={{

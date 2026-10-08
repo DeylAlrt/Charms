@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 
-/** Owner-only "Out of stock" flag per charm filename. See /api/charm-status. */
 export function useOutOfStock() {
   const [outOfStockMap, setOutOfStockMap] = useState<Record<string, boolean>>({});
 

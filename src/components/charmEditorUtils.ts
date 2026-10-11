@@ -38,14 +38,11 @@ export const getPrice = (filename: string): number => {
   }
 
   if (lower.includes("premium")) {
-    if (lower.includes("starter")) return 5.00;
     if (lower.includes("charming")) return 7.00;
-    if (lower.includes("iconic")) return 8.00;
     return 7.00;
   }
 
   if (lower.includes("deluxe")) {
-    if (lower.includes("baby")) return 10.00;
     if (lower.includes("silver")) return 12.00;
     if (lower.includes("gold")) return 15.00;
     return 0.00;
@@ -62,7 +59,7 @@ export const getPrice = (filename: string): number => {
   }
 
   if (lower.includes("number")) {
-    return 3.00;
+    return 3.50;
   }
 
   return 0.00;

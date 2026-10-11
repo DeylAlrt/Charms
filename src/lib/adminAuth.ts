@@ -1,17 +1,5 @@
 import crypto from 'crypto';
 
-/**
- * Server-only admin authentication.
- *
- * The password is checked and the session cookie is verified entirely on
- * the server — none of this ever ships to the browser bundle, so nothing
- * here is visible via "View Source" or the DevTools console. The cookie
- * itself is HttpOnly, so client-side JavaScript can't read it either.
- *
- * Set ADMIN_PASSWORD in the environment (e.g. .env.local, or your host's
- * environment variables) to change the password without touching code.
- */
-
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Navillera1101';
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const SESSION_SECRET = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest('hex');

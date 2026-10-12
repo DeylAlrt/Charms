@@ -2,16 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { isAdminRequest } from '@/lib/adminAuth';
-
-const allowedExt = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-
-function isSafeFilename(name: string) {
-  if (!name || typeof name !== 'string') return false;
-  if (name.includes('/') || name.includes('\\')) return false;
-  const ext = path.extname(name).toLowerCase();
-  if (!allowedExt.includes(ext)) return false;
-  return /^[\w \-.\(\)]+\.[a-z0-9]+$/i.test(name);
-}
+import { isSafeCharmPath, resolveCharmPath } from '@/lib/charmPaths';
 
 export async function POST(req: Request) {
   if (!isAdminRequest(req)) {
@@ -28,14 +19,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing file or filename' }, { status: 400 });
     }
 
-    if (!isSafeFilename(filename)) {
+    if (!isSafeCharmPath(filename)) {
       return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
     }
 
-    const charmsDir = path.join(process.cwd(), 'public', 'charms');
-    const destPath = path.join(charmsDir, filename);
-
-    if (!destPath.startsWith(charmsDir)) {
+    const destPath = resolveCharmPath(filename);
+    if (!destPath) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
@@ -49,6 +38,7 @@ export async function POST(req: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
     await fs.promises.writeFile(destPath, buffer);
 
     return NextResponse.json({ ok: true });

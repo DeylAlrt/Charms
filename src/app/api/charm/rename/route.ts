@@ -2,23 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { isAdminRequest } from '@/lib/adminAuth';
-
-const allowedExt = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-
-// UPDATED: allows parentheses
-function isSafeFilename(name: string) {
-  if (!name || typeof name !== 'string') return false;
-
-  // disallow slashes to prevent directory traversal
-  if (name.includes('/') || name.includes('\\')) return false;
-
-  // check extension
-  const ext = path.extname(name).toLowerCase();
-  if (!allowedExt.includes(ext)) return false;
-
-  // allow: letters, numbers, spaces, underscore, dash, dot, parentheses
-  return /^[\w \-.\(\)]+\.[a-z0-9]+$/i.test(name);
-}
+import { isSafeCharmPath, resolveCharmPath } from '@/lib/charmPaths';
 
 export async function POST(req: Request) {
   if (!isAdminRequest(req)) {
@@ -30,16 +14,14 @@ export async function POST(req: Request) {
     const { oldName, newName, overwrite } = body || {};
 
     // Filename validation
-    if (!isSafeFilename(oldName) || !isSafeFilename(newName)) {
+    if (!isSafeCharmPath(oldName) || !isSafeCharmPath(newName)) {
       return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
     }
 
-    const charmsDir = path.join(process.cwd(), 'public', 'charms');
-    const oldPath = path.join(charmsDir, oldName);
-    const newPath = path.join(charmsDir, newName);
-
     // Prevent directory escape
-    if (!oldPath.startsWith(charmsDir) || !newPath.startsWith(charmsDir)) {
+    const oldPath = resolveCharmPath(oldName);
+    const newPath = resolveCharmPath(newName);
+    if (!oldPath || !newPath) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
@@ -62,7 +44,8 @@ export async function POST(req: Request) {
       // new file does not exist (this is good)
     }
 
-    // Rename file
+    // Rename file (possibly into another folder)
+    await fs.promises.mkdir(path.dirname(newPath), { recursive: true });
     await fs.promises.rename(oldPath, newPath);
 
     return NextResponse.json({ ok: true });

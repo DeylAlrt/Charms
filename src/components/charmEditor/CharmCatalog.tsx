@@ -2,41 +2,35 @@
 
 import { useEffect, useRef, useState } from 'react';
 import DraggableCharm from '../DraggableCharm';
-import { LETTER_ORDER, getCategory, isCharmSoldOut, type Charm } from '../charmEditorUtils';
+import { UNCATALOGUED, charmImageUrl, isCharmSoldOut, stockKeyFor, type Charm } from '../charmEditorUtils';
+import { CATALOGUE_CATEGORIES, CATALOGUE_ENTRIES } from '../charmCatalogue';
 import { getStockColor } from './useCharmStock';
 
-const CATEGORIES = ["All", "Classic Charms", "Premium Charms", "Deluxe Charms", "Flags", "A-Z", "0-9"];
+/**
+ * Builds catalog entries in the main site's order, from its catalogue rather
+ * than the filenames. Catalogue links whose image is missing are skipped;
+ * images that aren't in the catalogue are only listed for the owner.
+ */
+function buildCatalog(charmFiles: string[], ownerMode: boolean): Charm[] {
+  const onDisk = new Set(charmFiles);
+  const catalogued = CATALOGUE_ENTRIES
+    .filter(entry => onDisk.has(entry.file))
+    .map(entry => ({ filename: entry.file, category: entry.category, displayName: entry.displayName }));
+  const known = new Set(CATALOGUE_ENTRIES.map(entry => entry.file));
+  const uncatalogued = ownerMode
+    ? charmFiles.filter(file => !known.has(file)).map(file => ({
+        filename: file,
+        category: UNCATALOGUED,
+        displayName: file.replace(/\.[^.]+$/, "").replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim(),
+      }))
+    : [];
 
-const stripExtension = (filename: string) => filename.replace(/\.(png|jpg|jpeg)$/i, '');
-
-/** Builds catalog entries from the raw filenames and sorts A-Z views gold-first-then-alphabetical. */
-function buildCatalog(charmFiles: string[]): Charm[] {
-  return charmFiles.map((file, i) => ({
+  return [...catalogued, ...uncatalogued].map((charm, i) => ({
+    ...charm,
     id: `catalog-${i}`,
-    img: `/charms/${file}`,
-    filename: file,
-    category: getCategory(file),
-    displayName: file.replace(/\.[^.]+$/, "").replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').replace(/\s*\(\d+\)\s*$/, '').trim(),
+    img: charmImageUrl(charm.filename),
     catalogItem: true,
   }));
-}
-
-function sortAlphabetically(charms: Charm[]): Charm[] {
-  return [...charms].sort((a, b) => {
-    const A = a.filename.toLowerCase();
-    const B = b.filename.toLowerCase();
-    const isGoldA = A.includes("gold");
-    const isGoldB = B.includes("gold");
-    if (isGoldA && !isGoldB) return -1;
-    if (!isGoldA && isGoldB) return 1;
-    const getLetter = (name: string) => {
-      const num = name.match(/\((\d+)\)/)?.[1];
-      if (num) return LETTER_ORDER[parseInt(num) - 1] || "Z";
-      const letter = name.match(/[a-z]/i)?.[0];
-      return letter ? letter.toUpperCase() : "Z";
-    };
-    return getLetter(A).localeCompare(getLetter(B));
-  });
 }
 
 type CharmCatalogProps = {
@@ -96,16 +90,16 @@ export default function CharmCatalog({
       row.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
-  }, []);
+  }, [ownerMode]);
 
-  const charmData = buildCatalog(charmFiles);
+  const charmData = buildCatalog(charmFiles, ownerMode);
+  const categories = ["All", ...CATALOGUE_CATEGORIES, ...(ownerMode ? [UNCATALOGUED] : [])];
   const categoryCounts: Record<string, number> = { All: charmData.length };
   for (const charm of charmData) {
     categoryCounts[charm.category!] = (categoryCounts[charm.category!] || 0) + 1;
   }
 
-  const rawFiltered = activeCategory === 'All' ? charmData : charmData.filter(c => c.category === activeCategory);
-  const filteredCharms = activeCategory === 'A-Z' || activeCategory === 'All' ? sortAlphabetically(rawFiltered) : rawFiltered;
+  const filteredCharms = activeCategory === 'All' ? charmData : charmData.filter(c => c.category === activeCategory);
 
   const handleTap = (charm: Charm) => {
     if (!isCharmSoldOut(charm.filename, outOfStockMap)) onAddCharm(charm);
@@ -129,7 +123,7 @@ export default function CharmCatalog({
             WebkitMaskImage: categoriesScrollable ? 'linear-gradient(to right, black calc(100% - 32px), transparent 100%)' : undefined,
           }}
         >
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
@@ -170,7 +164,7 @@ export default function CharmCatalog({
       >
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
           {filteredCharms.map((charm) => {
-            const stockKey = stripExtension(charm.filename);
+            const stockKey = stockKeyFor(charm.filename);
             const soldOut = isCharmSoldOut(charm.filename, outOfStockMap);
             return (
               <div key={charm.id} className="relative group pointer-events-auto">

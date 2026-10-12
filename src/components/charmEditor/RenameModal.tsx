@@ -1,8 +1,5 @@
 "use client";
 
-import { getCategory } from '../charmEditorUtils';
-import { categoryPrefixFor } from './useCharmFileManager';
-
 type RenameState = {
   open: boolean;
   oldName: string | null;
@@ -16,7 +13,7 @@ type RenameState = {
   submit: () => void;
 };
 
-/** Owner-only modal for renaming a catalog charm's image file (also reassigns its category via filename prefix). */
+/** Owner-only modal for renaming (or moving between folders) a catalog charm's image file. Prices and categories come from charmCatalogue.ts, keyed by this path. */
 export default function RenameModal({ rename }: { rename: RenameState }) {
   if (!rename.open) return null;
 
@@ -26,18 +23,7 @@ export default function RenameModal({ rename }: { rename: RenameState }) {
       <div className="relative bg-white rounded-lg p-4 w-80 shadow-lg z-70 border border-sky-tint">
         <h3 className="font-bold mb-2 text-navy">Rename Charm</h3>
         <div className="mb-2 text-sm text-muted">Old: <span className="font-mono text-navy">{rename.oldName}</span></div>
-        <label className="block text-xs mb-1 text-muted">Category (prefix)</label>
-        <select className="w-full text-sm bg-white text-navy mb-2 p-1 border border-sky-tint rounded focus:outline-none focus:border-accent-blue" value={getCategory(rename.newName)} onChange={(e) => {
-          const prefix = categoryPrefixFor(e.target.value);
-          rename.setNewName(`${prefix}_${rename.oldName || ''}`);
-        }}>
-          <option>Classic Charms</option>
-          <option>Premium Charms</option>
-          <option>Deluxe Charms</option>
-          <option>A-Z</option>
-          <option>0-9</option>
-        </select>
-        <label className="block text-xs text-muted mb-1">New filename</label>
+        <label className="block text-xs text-muted mb-1">New path (e.g. Flag Links/Flags (12).png)</label>
         <input className="w-full mb-2 p-1 border border-sky-tint rounded text-navy focus:outline-none focus:border-accent-blue" value={rename.newName} onChange={(e) => rename.setNewName(e.target.value)} />
         <label className="flex items-center gap-2 text-sm mb-2">
           <input type="checkbox" checked={rename.overwrite} onChange={(e) => rename.setOverwrite(e.target.checked)} />

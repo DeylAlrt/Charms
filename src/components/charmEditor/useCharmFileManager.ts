@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { getCategory } from '../charmEditorUtils';
 
 /** Extracts a human-readable message from a caught value of unknown shape. */
 const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
@@ -9,16 +8,6 @@ const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
     if (typeof message === 'string') return message;
   }
   return typeof err === 'string' ? err : fallback;
-};
-
-export const categoryPrefixFor = (cat: string) => {
-  switch (cat) {
-    case 'Deluxe Charms': return 'deluxe';
-    case 'Premium Charms': return 'premium';
-    case '0-9': return 'number';
-    case 'A-Z': return 'letter';
-    default: return 'classic';
-  }
 };
 
 /**
@@ -44,8 +33,7 @@ export function useCharmFileManager() {
 
   const openRenameModal = (oldFilename: string) => {
     setRenameOld(oldFilename);
-    const prefix = categoryPrefixFor(getCategory(oldFilename));
-    setRenameNew(`${prefix}_${oldFilename}`);
+    setRenameNew(oldFilename);
     setRenameOverwrite(false);
     setRenameError(null);
     setRenameOpen(true);

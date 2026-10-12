@@ -1,4 +1,4 @@
-export const LETTER_ORDER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+import { getCatalogueEntry } from "./charmCatalogue";
 
 export const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Brown", "Red", "Purple", "Pink"] as const;
 export type BaseColor = typeof baseColorOptions[number];
@@ -6,6 +6,7 @@ export type BaseColor = typeof baseColorOptions[number];
 export type Charm = {
   id: string;
   img: string;
+  /** Image path relative to public/charms, e.g. "Concave Links/Concave_Gold_Links (1).png". */
   filename: string;
   category?: string;
   displayName?: string;
@@ -13,76 +14,30 @@ export type Charm = {
   isPlaceholder?: boolean;
 };
 
-export const getPrice = (filename: string): number => {
-  const lower = filename.toLowerCase();
+/** Category for charm images on disk that aren't in the main site's catalogue (shown to the owner only). */
+export const UNCATALOGUED = "Uncatalogued";
 
-  if (lower.includes("plain")) {
-    if (lower.includes("gold")) return 1.50;
-    if (lower.includes("silver")) return 1.00;
-    if (lower.includes("red")) return 1.50;
-    if (lower.includes("blue")) return 1.50;
-    if (lower.includes("black")) return 1.50;
-    if (lower.includes("brown")) return 1.50;
-    if (lower.includes("purple")) return 1.50;
-    if (lower.includes("pink")) return 1.50;
-    return 1.00;
-  }
+/** Price in AED, taken from the main site's catalogue (see charmCatalogue.ts). */
+export const getPrice = (filename: string): number => getCatalogueEntry(filename)?.price ?? 0;
 
-  if (lower.includes("classic")) {
-    if (lower.includes("concave")) return 2.50;
-    if (lower.includes("gold")) return 3.00;
-    if (lower.includes("outline")) return 3.50;
-    if (lower.includes("colored")) return 4.00;
-    if (lower.includes("solid")) return 4.50;
-    return 0.00;
-  }
+/** Public URL for a charm image; paths contain folders and spaces, so each segment is encoded. */
+export const charmImageUrl = (filename: string): string =>
+  `/charms/${filename.split("/").map(encodeURIComponent).join("/")}`;
 
-  if (lower.includes("premium")) {
-    if (lower.includes("charming")) return 7.00;
-    return 7.00;
-  }
-
-  if (lower.includes("deluxe")) {
-    if (lower.includes("silver")) return 12.00;
-    if (lower.includes("gold")) return 15.00;
-    return 0.00;
-  }
-
-  if (lower.includes("flag")) {
-    return 8.00;
-  }
-
-  if (lower.includes("letters")) {
-    if (lower.includes("gold")) return 3.50;
-    if (lower.includes("silver")) return 3.00;
-    return 0.00;
-  }
-
-  if (lower.includes("number")) {
-    return 3.50;
-  }
-
-  return 0.00;
-};
-
-export const getCategory = (filename: string): string => {
-  const s = filename.toLowerCase();
-
-  if (s.includes("classic") || s.includes("plain")) return "Classic Charms";
-  if (s.includes("premium")) return "Premium Charms";
-  if (s.includes("deluxe")) return "Deluxe Charms";
-  if (s.includes("letters")) return "A-Z";
-  if (s.includes("number")) return "0-9";
-  if (s.includes("flags")) return "Flags";
-  return "All";
-};
+/** Basename without extension — the key used for stock counts in the Stock sheet. */
+export const stockKeyFor = (filename: string): string =>
+  filename.split("/").pop()!.replace(/\.(png|jpg|jpeg)$/i, "");
 
 export const isCharmSoldOut = (filename: string, outOfStock: Record<string, boolean>): boolean =>
-  !!outOfStock[filename] || filename.toLowerCase().includes("sold");
+  !!outOfStock[filename] || !!getCatalogueEntry(filename)?.soldOut || filename.toLowerCase().includes("sold");
 
+/** The plain link that fills empty bracelet slots in the given base color. */
+export const plainCharmFile = (color: BaseColor) => `Plain Links/${color}_Plain_Charm.png`;
+
+// Empty slots are plain links, so `filename` makes them priced like the plain links on the main site.
 export const getPlaceholderCharm = (color: BaseColor) => ({
   id: `placeholder-${color.toLowerCase()}`,
-  img: `/charms/${color}_Plain_Charm.png`,
-  filename: `${color}_Plain_Charm.png`,
+  img: charmImageUrl(plainCharmFile(color)),
+  filename: plainCharmFile(color),
   isPlaceholder: true,
 });

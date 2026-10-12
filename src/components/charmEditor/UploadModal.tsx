@@ -29,7 +29,7 @@ export default function UploadModal({ upload }: { upload: UploadState }) {
           upload.setFile(f);
           if (f) upload.setFilename(f.name);
         }} />
-        <label className="block text-xs mt-2 mb-1 text-muted">Filename</label>
+        <label className="block text-xs mt-2 mb-1 text-muted">Path (e.g. Flag Links/Flags (12).png)</label>
         <input className="w-full mb-2 p-1 border border-sky-tint rounded text-sm text-navy focus:outline-none focus:border-accent-blue" value={upload.filename} onChange={(e) => upload.setFilename(e.target.value)} />
         <label className="flex items-center gap-2 text-sm mb-2">
           <input type="checkbox" checked={upload.overwrite} onChange={(e) => upload.setOverwrite(e.target.checked)} />

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import emailjs from '@emailjs/browser';
-import type { BaseColor, Charm } from '../charmEditorUtils';
+import { charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
 
 /** Extracts a human-readable message from a caught value of unknown shape. */
 const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
@@ -12,7 +12,9 @@ const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
   return typeof err === 'string' ? err : fallback;
 };
 
-const stripExtension = (filename: string) => filename.replace(/\.(png|jpg|jpeg)$/i, '');
+/** Charm name for orders and emails; the category disambiguates labels like "Star" that appear in several sections. */
+const orderName = (item: Charm) =>
+  item.category ? `${item.displayName} (${item.category})` : item.displayName ?? item.filename;
 
 export const getDeliveryFee = (place: string): number => {
   if (place.includes('Mall of the Emirates Metro') || place.includes('DMCC Metro')) return 5;
@@ -160,7 +162,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const buildCharmEmailFields = (baseUrl: string) => {
     const fields: Record<string, string> = {};
     const textLayoutLines: string[] = [];
-    const plainCharmUrl = `${baseUrl}/charms/${selectedBaseColor}_Plain_Charm.png`;
+    const plainCharmUrl = baseUrl + charmImageUrl(plainCharmFile(selectedBaseColor));
 
     for (let i = 0; i < 22; i++) {
       const item = i < maxSlots ? bracelet[i] : undefined;
@@ -168,7 +170,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       const imageUrl = isEmpty ? plainCharmUrl : baseUrl + item.img;
       const charmName = isEmpty
         ? (i < maxSlots ? `${selectedBaseColor} Plain` : 'Empty')
-        : stripExtension(item.filename);
+        : orderName(item);
 
       fields[`charm_${i + 1}_url`] = imageUrl;
       fields[`charm_${i + 1}_name`] = charmName;
@@ -207,7 +209,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     const total = subtotalAfterDiscount + deliveryFee;
     const charmsList = bracelet
       .filter(item => item && !item.isPlaceholder)
-      .map(item => item.displayName)
+      .map(orderName)
       .join(', ');
     const baseUrl = window.location.origin;
 

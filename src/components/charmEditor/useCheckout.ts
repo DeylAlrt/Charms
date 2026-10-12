@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import emailjs from '@emailjs/browser';
 import { charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
+import {
+  DELIVERY_DATE_TEXT, DELIVERY_OPTIONS, describeDelivery, getDeliveryOption, paymentLabel,
+  type DeliveryMethod, type PaymentMethod,
+} from './orderOptions';
 
 /** Extracts a human-readable message from a caught value of unknown shape. */
 const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
@@ -15,14 +19,6 @@ const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
 /** Charm name for orders and emails; the category disambiguates labels like "Star" that appear in several sections. */
 const orderName = (item: Charm) =>
   item.category ? `${item.displayName} (${item.category})` : item.displayName ?? item.filename;
-
-export const getDeliveryFee = (place: string): number => {
-  if (place.includes('Mall of the Emirates Metro') || place.includes('DMCC Metro')) return 5;
-  if (place.includes('Union Metro') || place.includes('Burjuman Metro')) return 10;
-  if (place.includes('Dubai: 20 AED')) return 20;
-  if (place.includes('Other Emirates: 25 AED')) return 25;
-  return 0; // Free delivery
-};
 
 // Same promo codes and new-customer-only restriction as the main site's
 // cart (Js_Folder/cart.js) — one-time use tracked per browser.
@@ -65,13 +61,22 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [view, setView] = useState<'items' | 'form'>('items');
 
-  const [customerName, setCustomerName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
-  const [pickupTime, setPickupTime] = useState('');
-  const [meetupPlace, setMeetupPlace] = useState('');
-  const [deliveryDate, setDeliveryDate] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [deliveryMethod, setDeliveryMethodState] = useState<DeliveryMethod | null>(null);
+  const [deliveryOptionId, setDeliveryOptionId] = useState('');
+  const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+
+  /** Picking pick-up or home delivery settles the option; metro still needs a station. */
+  const setDeliveryMethod = (method: DeliveryMethod) => {
+    setDeliveryMethodState(method);
+    setDeliveryOptionId(method === 'metro' ? '' : DELIVERY_OPTIONS.find(o => o.method === method)!.id);
+  };
+  const deliveryOption = getDeliveryOption(deliveryOptionId);
+  const deliveryFee = deliveryOption?.fee ?? 0;
 
   const [promoInput, setPromoInput] = useState('');
   const [promoMessage, setPromoMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -81,9 +86,8 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const [orderStatus, setOrderStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Pay on pickup/delivery (the flow above) vs. pay online now via Ziina,
-  // embedded in an iframe right in the drawer.
-  const [paymentMethod, setPaymentMethod] = useState<'pickup' | 'online'>('pickup');
+  // Ziina is paid right here in an embedded iframe; Cash on Delivery and
+  // Bank Transfer just send the order, and the details follow on WhatsApp.
   const [ziinaSubmitting, setZiinaSubmitting] = useState(false);
   const [ziinaEmbedUrl, setZiinaEmbedUrl] = useState<string | null>(null);
   const [ziinaResult, setZiinaResult] = useState<'success' | 'failed' | 'canceled' | null>(null);
@@ -184,28 +188,40 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   };
 
   const resetForm = () => {
-    setCustomerName('');
-    setPhoneNumber('');
     setEmail('');
-    setPickupTime('');
-    setMeetupPlace('');
-    setDeliveryDate('');
+    setPhoneNumber('');
+    setCustomerName('');
+    setDeliveryMethodState(null);
+    setDeliveryOptionId('');
+    setAddress('');
     setNotes('');
+    setPaymentMethod(null);
+  };
+
+  /** Plain-language reason the form can't be sent yet, or null when it's complete. */
+  const findMissingStep = (): string | null => {
+    if (!email || !phoneNumber || !customerName) return 'Please fill in your email, WhatsApp number and name (step 1).';
+    if (!deliveryMethod) return 'Please choose how you want to get your order (step 2).';
+    if (!deliveryOption) return 'Please choose a metro station (step 2).';
+    if (deliveryOption.needsAddress && !address.trim()) return 'Please type your home address (step 2).';
+    if (!paymentMethod) return 'Please choose how you want to pay (step 3).';
+    return null;
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
 
-    if (!customerName || !phoneNumber || !pickupTime || !meetupPlace || !deliveryDate) {
-      setOrderStatus({ text: 'Please fill in all required fields.', type: 'error' });
+    const missing = findMissingStep();
+    if (missing || !deliveryOption || !paymentMethod) {
+      setOrderStatus({ text: missing ?? 'Please complete every step.', type: 'error' });
       return;
     }
 
     setSubmitting(true);
     setOrderStatus(null);
 
-    const deliveryFee = getDeliveryFee(meetupPlace);
+    const deliveryText = describeDelivery(deliveryOption, address);
     const total = subtotalAfterDiscount + deliveryFee;
     const charmsList = bracelet
       .filter(item => item && !item.isPlaceholder)
@@ -213,7 +229,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       .join(', ');
     const baseUrl = window.location.origin;
 
-    if (paymentMethod === 'online') {
+    if (paymentMethod === 'ziina') {
       setZiinaSubmitting(true);
       try {
         const response = await fetch('/api/create-payment-intent', {
@@ -222,9 +238,10 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
           body: JSON.stringify({
             customerName,
             phone: phoneNumber,
-            pickupTime,
-            meetupPlace,
-            deliveryDate,
+            email,
+            meetupPlace: deliveryText,
+            deliveryDate: DELIVERY_DATE_TEXT,
+            notes,
             braceletSize: `${maxSlots} charms`,
             baseColor: selectedBaseColor,
             subtotal: subtotalAfterDiscount,
@@ -249,16 +266,19 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       return;
     }
 
-    // --- Pay on pickup/delivery: existing flow, unchanged below ---
+    // --- Cash on Delivery / Bank Transfer: send the order now, details follow on WhatsApp ---
+    const payment = paymentLabel(paymentMethod);
     const emailParams = {
       to_email: 'Navilleracharmstudio@gmail.com',
       customer_name: customerName,
       phone: phoneNumber,
-      customer_email: email || 'None',
-      pickup_time: pickupTime,
-      meetup_place: meetupPlace,
-      delivery_date: deliveryDate,
-      notes: notes || 'None',
+      customer_email: email,
+      pickup_time: '',
+      meetup_place: deliveryText,
+      delivery_date: DELIVERY_DATE_TEXT,
+      payment_method: payment,
+      // Payment is repeated in the notes so it shows even in a template without {{payment_method}}.
+      notes: notes ? `Payment: ${payment}\n${notes}` : `Payment: ${payment}`,
       bracelet_size: `${maxSlots} charms`,
       base_color: selectedBaseColor,
       subtotal: subtotal.toFixed(2),
@@ -271,8 +291,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
 
     // Log the order to Google Sheets. Non-fatal: the email is what actually
     // notifies the shop, so an order should still go through if this fails.
-    // Columns are unchanged from before (no promo/email/notes columns) so an
-    // already-configured sheet doesn't need to change to keep working.
+    // The sheet's old "Pickup Time" column (C) now holds the payment method.
     try {
       const sheetResponse = await fetch('/api/stock', {
         method: 'POST',
@@ -281,9 +300,9 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
           orderData: {
             customerName,
             phone: phoneNumber,
-            pickupTime,
-            meetupPlace,
-            deliveryDate,
+            pickupTime: payment,
+            meetupPlace: deliveryText,
+            deliveryDate: DELIVERY_DATE_TEXT,
             size: `${maxSlots} charms`,
             charms: charmsList,
             subtotal: subtotalAfterDiscount.toFixed(2),
@@ -302,17 +321,17 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
 
     try {
       await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
-      setOrderStatus({ text: "Thanks! Your order request has been sent — we'll confirm within 1-2 days.", type: 'success' });
+      setOrderStatus({ text: "Thank you! 🎉 Your order is sent. We'll message you on WhatsApp soon.", type: 'success' });
       markAsOrdered();
       setPromoLocked(true);
       setAppliedPromo(null);
       setPromoInput('');
       setPromoMessage(null);
       resetForm();
-      setTimeout(() => setDrawerOpen(false), 2500);
+      setTimeout(() => setDrawerOpen(false), 3500);
     } catch (error) {
       console.error('Email sending failed:', error);
-      setOrderStatus({ text: 'Something went wrong sending your order: ' + getErrorMessage(error), type: 'error' });
+      setOrderStatus({ text: 'Sorry, something went wrong sending your order: ' + getErrorMessage(error), type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -346,11 +365,13 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       customerName, setCustomerName,
       phoneNumber, setPhoneNumber,
       email, setEmail,
-      pickupTime, setPickupTime,
-      meetupPlace, setMeetupPlace,
-      deliveryDate, setDeliveryDate,
+      deliveryMethod, setDeliveryMethod,
+      deliveryOptionId, setDeliveryOptionId,
+      deliveryOption,
+      address, setAddress,
       notes, setNotes,
     },
+    deliveryFee,
     promo: {
       input: promoInput, setInput: setPromoInput,
       message: promoMessage,

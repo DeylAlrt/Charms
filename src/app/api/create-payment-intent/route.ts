@@ -16,8 +16,9 @@ export async function POST(request: NextRequest) {
     const {
       customerName,
       phone,
-      pickupTime,
+      email,
       meetupPlace,
+      notes,
       deliveryDate,
       braceletSize,
       baseColor,
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       emailFields,
     } = body;
 
-    if (!customerName || !phone || !pickupTime || !meetupPlace || !deliveryDate) {
+    if (!customerName || !phone || !meetupPlace) {
       return NextResponse.json({ success: false, error: 'Missing required order fields.' }, { status: 400 });
     }
 
@@ -56,7 +57,8 @@ export async function POST(request: NextRequest) {
         to_email: 'Navilleracharmstudio@gmail.com',
         customer_name: customerName,
         phone,
-        pickup_time: pickupTime,
+        customer_email: email || '',
+        pickup_time: '',
         meetup_place: meetupPlace,
         delivery_date: deliveryDate,
         bracelet_size: braceletSize,
@@ -65,13 +67,14 @@ export async function POST(request: NextRequest) {
         delivery_fee: deliveryFeeStr,
         total: totalStr,
         payment_method: 'Paid Online (Ziina)',
+        notes: notes ? `Payment: Paid Online (Ziina)\n${notes}` : 'Payment: Paid Online (Ziina)',
         ...(emailFields || {}),
       },
       sheetOrderData: {
         customerName,
         phone,
-        pickupTime,
-        meetupPlace: `${meetupPlace} (Paid Online)`,
+        pickupTime: 'Paid Online (Ziina)',
+        meetupPlace,
         deliveryDate,
         size: braceletSize,
         charms: charmsList || '',

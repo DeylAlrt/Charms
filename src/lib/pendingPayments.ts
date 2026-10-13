@@ -15,6 +15,8 @@ const HEADER = ['Payment Intent ID', 'Status', 'Order Data (JSON)', 'Created At'
 export type PendingOrder = {
   emailParams: Record<string, string>;
   sheetOrderData: Record<string, string>;
+  /** Which order email to send once paid: the builder's (default) or the main site's cart. */
+  emailTemplate?: 'builder' | 'site';
 };
 
 export async function savePendingPayment(paymentIntentId: string, order: PendingOrder): Promise<void> {

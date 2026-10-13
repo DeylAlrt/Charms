@@ -16,22 +16,32 @@
 
 const EMAILJS_REST_ENDPOINT = 'https://api.emailjs.com/api/v1.0/email/send';
 
-// Same service/template/public key already used for the pay-on-pickup
-// order flow in CharmEditorClient.tsx — reuse it rather than paying for
-// a second EmailJS service.
-const EMAILJS_SERVICE_ID = 'service_335t5bn';
-const EMAILJS_TEMPLATE_ID = 'template_dpoi8cn';
-const EMAILJS_PUBLIC_KEY = '-2tCjwFJUnT97N93w';
+// The same EmailJS service/template/public keys each order form already uses
+// in the browser, so paid-online orders arrive as the same emails:
+//   builder — the charm builder's bracelet order (per-slot charm pictures)
+//   site    — the main site's cart order (Js_Folder/cart.js, items_html)
+// The "non-browser applications" setting above must be on in EACH EmailJS
+// account these keys belong to.
+const EMAILJS_TEMPLATES = {
+  builder: { serviceId: 'service_335t5bn', templateId: 'template_dpoi8cn', publicKey: '-2tCjwFJUnT97N93w' },
+  site: { serviceId: 'service_ff6chqi', templateId: 'template_k1boxcg', publicKey: 'vvg-sBt7pyZ2SOfHk' },
+} as const;
 
-/** Sends the same order-notification template used for pay-on-pickup orders, server-side. */
-export async function sendOrderNotificationEmail(templateParams: Record<string, string>): Promise<void> {
+export type OrderEmailTemplate = keyof typeof EMAILJS_TEMPLATES;
+
+/** Sends an order-notification email server-side, using the builder's or the main site's template. */
+export async function sendOrderNotificationEmail(
+  templateParams: Record<string, string>,
+  template: OrderEmailTemplate = 'builder'
+): Promise<void> {
+  const { serviceId, templateId, publicKey } = EMAILJS_TEMPLATES[template];
   const res = await fetch(EMAILJS_REST_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      service_id: EMAILJS_SERVICE_ID,
-      template_id: EMAILJS_TEMPLATE_ID,
-      user_id: EMAILJS_PUBLIC_KEY,
+      service_id: serviceId,
+      template_id: templateId,
+      user_id: publicKey,
       template_params: templateParams,
     }),
   });

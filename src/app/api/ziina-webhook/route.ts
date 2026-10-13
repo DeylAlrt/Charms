@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     await appendOrderToSheet(pending.order.sheetOrderData as any);
-    await sendOrderNotificationEmail(pending.order.emailParams);
+    await sendOrderNotificationEmail(pending.order.emailParams, pending.order.emailTemplate ?? 'builder');
     await markPendingPaymentStatus(pending.rowNumber, 'processed');
 
     return NextResponse.json({ success: true, action: 'order_confirmed' });

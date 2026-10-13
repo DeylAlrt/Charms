@@ -48,7 +48,7 @@ export const describeDelivery = (option: DeliveryOption, address: string): strin
 export type PaymentMethod = 'ziina' | 'cod' | 'bank';
 
 export const PAYMENT_OPTIONS: { id: PaymentMethod; icon: string; title: string; detail: string }[] = [
-  { id: 'ziina', icon: '💳', title: 'Pay online now (Ziina)', detail: 'Card, Apple Pay or Google Pay' },
+  { id: 'ziina', icon: '💳', title: 'Pay online now (Ziina)', detail: "You'll be redirected to Ziina to pay securely (card, Apple Pay or Google Pay)" },
   { id: 'cod', icon: '💵', title: 'Cash on Delivery', detail: 'Pay in cash when you get your order' },
   { id: 'bank', icon: '🏦', title: 'Bank Transfer', detail: "We'll send our bank details on WhatsApp" },
 ];

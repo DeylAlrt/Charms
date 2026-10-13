@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import emailjs from '@emailjs/browser';
+import { PROMO_CODES } from '@/lib/orderPricing';
 import { charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
 import {
   DELIVERY_DATE_TEXT, DELIVERY_OPTIONS, describeDelivery, getDeliveryOption, paymentLabel,
@@ -22,9 +23,6 @@ const orderName = (item: Charm) =>
 
 // Same promo codes and new-customer-only restriction as the main site's
 // cart (Js_Folder/cart.js) — one-time use tracked per browser.
-const PROMO_CODES: Record<string, number> = {
-  NEWBABE: 0.05,
-};
 const HAS_ORDERED_KEY = 'navillera-has-ordered';
 
 const hasOrderedBefore = (): boolean => {
@@ -99,6 +97,27 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
 
   useEffect(() => {
     setPromoLocked(hasOrderedBefore());
+  }, []);
+
+  // Back from Ziina's payment page (?ziina=success / cancel / failed): show
+  // the result and tidy the address bar. The order itself is only confirmed
+  // by the Ziina webhook, which re-checks the payment with Ziina, so editing
+  // this address can't create a paid order.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('ziina');
+    if (!outcome) return;
+    if (outcome === 'success') {
+      setZiinaResult('success');
+      markAsOrdered();
+    } else if (outcome === 'cancel') {
+      setZiinaResult('canceled');
+    } else if (outcome === 'failed') {
+      setZiinaResult('failed');
+    }
+    params.delete('ziina');
+    const query = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
   }, []);
 
   // Listens for Ziina's embedded-checkout postMessage events. The order
@@ -244,9 +263,10 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
             notes,
             braceletSize: `${maxSlots} charms`,
             baseColor: selectedBaseColor,
-            subtotal: subtotalAfterDiscount,
-            deliveryFee,
-            total,
+            // The server recomputes the price from these — it never trusts a total from the browser
+            slots: Array.from({ length: maxSlots }, (_, i) => bracelet[i]?.filename ?? plainCharmFile(selectedBaseColor)),
+            deliveryOptionId,
+            promoCode: appliedPromo?.code ?? '',
             charmsList,
             emailFields: buildCharmEmailFields(baseUrl),
           }),
@@ -256,7 +276,10 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
           setOrderStatus({ text: 'Could not start online payment: ' + data.error, type: 'error' });
           return;
         }
-        setZiinaEmbedUrl(data.embedded_url);
+        // Go to Ziina's secure payment page; Ziina sends the customer back to
+        // ?ziina=success / cancel / failed (handled in the effect above).
+        window.location.assign(data.redirect_url);
+        return;
       } catch (error) {
         setOrderStatus({ text: 'Could not start online payment: ' + getErrorMessage(error), type: 'error' });
       } finally {

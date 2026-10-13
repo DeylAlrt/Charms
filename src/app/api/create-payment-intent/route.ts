@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPaymentIntent } from '@/lib/ziina';
 import { savePendingPayment } from '@/lib/pendingPayments';
+import { priceOrder } from '@/lib/orderPricing';
 
 /**
  * Starts a Ziina online-payment checkout for an order.
@@ -22,9 +23,9 @@ export async function POST(request: NextRequest) {
       deliveryDate,
       braceletSize,
       baseColor,
-      subtotal,
-      deliveryFee,
-      total,
+      slots,
+      deliveryOptionId,
+      promoCode,
       charmsList,
       emailFields,
     } = body;
@@ -33,10 +34,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required order fields.' }, { status: 400 });
     }
 
-    const totalAed = Number(total);
-    if (!Number.isFinite(totalAed) || totalAed <= 0) {
-      return NextResponse.json({ success: false, error: 'Invalid order total.' }, { status: 400 });
+    // The amount charged is worked out here from the catalogue — never taken from the browser.
+    let priced;
+    try {
+      priced = priceOrder({ slots, deliveryOptionId, promoCode });
+    } catch (err) {
+      return NextResponse.json({ success: false, error: (err as Error).message }, { status: 400 });
     }
+    const { subtotal, deliveryFee, total: totalAed } = priced;
 
     const origin = request.nextUrl.origin;
 
@@ -84,7 +89,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, id: intent.id, embedded_url: intent.embedded_url });
+    // redirect_url = Ziina's full-page checkout (embedded checkout isn't enabled on the account)
+    return NextResponse.json({ success: true, id: intent.id, redirect_url: intent.redirect_url, embedded_url: intent.embedded_url });
   } catch (error: any) {
     console.error('Error creating Ziina payment intent:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

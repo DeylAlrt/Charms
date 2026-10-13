@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getPlaceholderCharm, getPrice, type BaseColor, type Charm } from '../charmEditorUtils';
+import { getCatalogueEntry } from '../charmCatalogue';
+
+const SAVED_DESIGN_KEY = 'navillera-bracelet-design';
 
 export const BRACELET_SIZES: Record<'small' | 'medium' | 'large' | 'xl', number> = {
   small: 16,
@@ -27,6 +30,37 @@ export function useBracelet() {
   const [bracelet, setBracelet] = useState<Charm[]>(() =>
     Array(maxSlots).fill(getPlaceholderCharm(selectedBaseColor))
   );
+
+  // Keep the design for this browser tab (sessionStorage), so it survives a
+  // refresh and the trip to Ziina's payment page and back. Restored once on
+  // load; charms no longer in the catalogue come back as empty spots.
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(SAVED_DESIGN_KEY) || 'null');
+      if (saved && saved.size in BRACELET_SIZES && Array.isArray(saved.bracelet)) {
+        const color = saved.color as BaseColor;
+        setSize(saved.size);
+        setSelectedBaseColor(color);
+        setBracelet(saved.bracelet.map((item: Charm | null) =>
+          item && !item.isPlaceholder && getCatalogueEntry(item.filename) ? item : getPlaceholderCharm(color)
+        ));
+      }
+    } catch {
+      // Nothing saved, or storage unavailable — start with an empty bracelet.
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      sessionStorage.setItem(SAVED_DESIGN_KEY, JSON.stringify({ size, color: selectedBaseColor, bracelet }));
+    } catch {
+      // Storage unavailable (private browsing, etc.) — saving is best-effort.
+    }
+  }, [restored, size, selectedBaseColor, bracelet]);
 
   // Re-skin empty slots whenever the base color changes.
   useEffect(() => {

@@ -127,7 +127,7 @@ export default function CharmCatalog({
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`flex-shrink-0 min-h-[38px] sm:min-h-11 px-4 py-1.5 rounded-full font-semibold text-xs sm:text-sm transition flex items-center gap-1.5 ${
+              className={`lift flex-shrink-0 min-h-[38px] sm:min-h-11 px-4 py-1.5 rounded-full font-semibold text-xs sm:text-sm flex items-center gap-1.5 ${
                 activeCategory === cat
                   ? "bg-navy text-white shadow-md"
                   : "bg-sky-tint-light text-navy hover:bg-sky-tint"

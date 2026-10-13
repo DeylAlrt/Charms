@@ -72,6 +72,30 @@ body {
  * scrolls natively but hides the bar for a cleaner look, matching the
  * jump-nav row on navilleracharms.vercel.app's collection page).
  */
+/*
+ * Hover animations, matching navilleracharms.vercel.app. Only `translate` and
+ * `scale` are animated (no layout work, so no lag), and only on devices with
+ * a real mouse, so taps on phones never leave a button "stuck" lifted.
+ *   .lift — buttons and pills rise 2px
+ *   .pop  — small round buttons (×, −, +) grow 10%
+ */
+.lift,
+.pop {
+  transition: translate 0.2s ease, scale 0.2s ease, color 0.2s ease,
+    background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+@media (hover: hover) {
+  .lift:hover:not(:disabled) {
+    translate: 0 -2px;
+    box-shadow: 0 6px 14px rgba(28, 43, 75, 0.15);
+  }
+
+  .pop:hover:not(:disabled) {
+    scale: 1.1;
+  }
+}
+
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;

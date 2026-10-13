@@ -126,7 +126,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                     <button
                       onClick={() => onRemoveAll(item.filename)}
                       aria-label={`Remove ${item.displayName}`}
-                      className="absolute top-3 right-3.5 text-muted hover:text-danger text-xl leading-none"
+                      className="pop absolute top-3 right-3.5 text-muted hover:text-danger text-xl leading-none"
                     >
                       &times;
                     </button>
@@ -140,14 +140,14 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                         <span className="text-sm text-muted">Qty:</span>
                         <button
                           onClick={() => onDecrement(item.filename)}
-                          className="w-8 h-8 rounded-full border border-pastel-blue bg-white text-navy flex items-center justify-center hover:bg-sky-tint-light transition-colors"
+                          className="pop w-8 h-8 rounded-full border border-pastel-blue bg-white text-navy flex items-center justify-center hover:bg-sky-tint-light"
                         >
                           &minus;
                         </button>
                         <span className="min-w-[20px] text-center font-bold text-navy">{count}</span>
                         <button
                           onClick={() => onIncrement(item)}
-                          className="w-8 h-8 rounded-full border border-pastel-blue bg-white text-navy flex items-center justify-center hover:bg-sky-tint-light transition-colors"
+                          className="pop w-8 h-8 rounded-full border border-pastel-blue bg-white text-navy flex items-center justify-center hover:bg-sky-tint-light"
                         >
                           +
                         </button>
@@ -206,10 +206,10 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                 </div>
 
                 <div className="flex gap-3 mt-4">
-                  <button onClick={checkout.closeDrawer} className="flex-1 min-h-12 rounded-full border border-pastel-blue bg-white text-navy font-semibold hover:bg-sky-tint-light transition-colors">
+                  <button onClick={checkout.closeDrawer} className="lift flex-1 min-h-12 rounded-full border border-pastel-blue bg-white text-navy font-semibold hover:bg-sky-tint-light">
                     Back
                   </button>
-                  <button onClick={checkout.goToCheckout} className="flex-[2] min-h-12 rounded-full bg-navy text-white font-bold uppercase tracking-wide hover:bg-pastel-blue hover:text-navy transition-colors">
+                  <button onClick={checkout.goToCheckout} className="lift flex-[2] min-h-12 rounded-full bg-navy text-white font-bold uppercase tracking-wide hover:bg-pastel-blue hover:text-navy">
                     Proceed Order
                   </button>
                 </div>
@@ -347,10 +347,10 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
             )}
 
             <div className="flex gap-3">
-              <button type="button" onClick={checkout.backToItems} className="flex-1 min-h-14 rounded-full border border-pastel-blue bg-white text-navy font-semibold hover:bg-sky-tint-light transition-colors">
+              <button type="button" onClick={checkout.backToItems} className="lift flex-1 min-h-14 rounded-full border border-pastel-blue bg-white text-navy font-semibold hover:bg-sky-tint-light">
                 Back
               </button>
-              <button type="submit" disabled={checkout.submitting || checkout.ziinaSubmitting} className="flex-[2] min-h-14 rounded-full bg-navy text-white text-lg font-bold hover:bg-pastel-blue hover:text-navy transition-colors disabled:opacity-70">
+              <button type="submit" disabled={checkout.submitting || checkout.ziinaSubmitting} className="lift flex-[2] min-h-14 rounded-full bg-navy text-white text-lg font-bold hover:bg-pastel-blue hover:text-navy disabled:opacity-70">
                 {checkout.ziinaSubmitting
                   ? 'Opening payment...'
                   : checkout.submitting
@@ -369,7 +369,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
             <button
               type="button"
               onClick={() => checkout.setZiinaEmbedUrl(null)}
-              className="absolute top-2 right-2 z-10 bg-sky-tint-light hover:bg-sky-tint rounded-full w-8 h-8 flex items-center justify-center text-navy"
+              className="pop absolute top-2 right-2 z-10 bg-sky-tint-light hover:bg-sky-tint rounded-full w-8 h-8 flex items-center justify-center text-navy"
               aria-label="Close payment"
             >
               &times;
@@ -407,7 +407,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
             <button
               type="button"
               onClick={checkout.closeZiinaResult}
-              className="bg-navy hover:bg-pastel-blue hover:text-navy text-white px-4 py-2 rounded-full font-semibold transition-colors"
+              className="lift bg-navy hover:bg-pastel-blue hover:text-navy text-white px-4 py-2 rounded-full font-semibold"
             >
               Close
             </button>

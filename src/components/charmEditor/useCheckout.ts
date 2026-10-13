@@ -292,7 +292,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     // --- Cash on Delivery / Bank Transfer: send the order now, details follow on WhatsApp ---
     const payment = paymentLabel(paymentMethod);
     const emailParams = {
-      to_email: 'Navilleracharmstudio@gmail.com',
+      to_email: 'sales.navilleracharms@gmail.com',
       customer_name: customerName,
       phone: phoneNumber,
       customer_email: email,

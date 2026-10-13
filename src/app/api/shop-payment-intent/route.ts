@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       emailTemplate: 'site',
       // Same fields the main site's EmailJS order template already uses
       emailParams: {
-        to_email: 'navilleracharmstudio@gmail.com',
+        to_email: 'sales.navilleracharms@gmail.com',
         customer_name: String(name).trim(),
         phone: String(phone).trim(),
         customer_email: String(email).trim(),

@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     await savePendingPayment(intent.id, {
       emailParams: {
-        to_email: 'Navilleracharmstudio@gmail.com',
+        to_email: 'sales.navilleracharms@gmail.com',
         customer_name: customerName,
         phone,
         customer_email: email || '',

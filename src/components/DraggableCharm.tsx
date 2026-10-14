@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Image from "next/image";
 import { isCharmSoldOut, type Charm } from './charmEditorUtils';
 
@@ -12,6 +13,8 @@ type DraggableCharmProps = {
 
 export default function DraggableCharm({ charm, compact = false, onTap, interactive = true, soldOut }: DraggableCharmProps) {
   const isSoldOut = soldOut ?? isCharmSoldOut(charm.filename);
+  // Which picture has finished loading, so a swapped-in charm shimmers again until it arrives
+  const [loadedImg, setLoadedImg] = useState<string | null>(null);
 
   return (
     <button
@@ -35,9 +38,11 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
           alt={charm.filename}
           width={120}
           height={120}
-          className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain select-none"
+          className={`w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain select-none ${loadedImg === charm.img ? '' : 'sk'}`}
           unoptimized
           draggable={false}
+          onLoad={() => setLoadedImg(charm.img)}
+          onError={() => setLoadedImg(charm.img)}
           style={{
             WebkitTouchCallout: 'none',
             WebkitUserSelect: 'none',

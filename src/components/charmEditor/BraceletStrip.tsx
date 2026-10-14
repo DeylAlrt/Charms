@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import DraggableCharm from '../DraggableCharm';
 import { baseColorOptions, type BaseColor, type Charm } from '../charmEditorUtils';
@@ -26,6 +26,12 @@ type BraceletStripProps = {
 };
 
 /** The bracelet card: size/color/total controls, the slot strip (drag to reorder), and its mobile scrollbar. */
+/** Bounces its charm in when it first appears (globals.css .charm-pop-in). */
+function PopIn({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  const [pop] = useState(enabled); // decided once, so existing charms never bounce again
+  return <span className={`inline-flex ${pop ? "charm-pop-in" : ""}`}>{children}</span>;
+}
+
 export default function BraceletStrip({
   bracelet, maxSlots, filled, subtotal,
   size, onSizeChange, selectedBaseColor, onBaseColorChange,
@@ -37,6 +43,12 @@ export default function BraceletStrip({
   const [touchDraggingIndex, setTouchDraggingIndex] = useState<number | null>(null);
   const [isDraggingCharm, setIsDraggingCharm] = useState(false);
   const [showFullDesign, setShowFullDesign] = useState(false);
+  // No bounce while the page opens (and restores a saved design), only for later changes
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 600);
+    return () => clearTimeout(timer);
+  }, []);
 
   const scrollbar = useBraceletScrollbar(maxSlots, size);
 
@@ -158,7 +170,9 @@ export default function BraceletStrip({
                       style={{ touchAction: 'none', userSelect: 'none' }}
                       className="w-full h-full flex items-center justify-center"
                     >
-                      <DraggableCharm charm={bracelet[i]} compact={true} interactive={false} />
+                      <PopIn key={bracelet[i]?.id} enabled={ready}>
+                        <DraggableCharm charm={bracelet[i]} compact={true} interactive={false} />
+                      </PopIn>
                     </div>
                   </>
                 )}

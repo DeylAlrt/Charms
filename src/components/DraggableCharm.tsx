@@ -28,9 +28,9 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
           relative overflow-hidden rounded-lg shadow-md flex flex-col items-center
           ${compact ? 'p-0' : 'p-2'}
           bg-white
-          transition-[translate,box-shadow] duration-200
+          transition-[translate,scale,box-shadow] duration-200
           ${isSoldOut ? 'grayscale opacity-60' : ''}
-          ${interactive && !isSoldOut ? 'group-hover:-translate-y-1 group-hover:shadow-lg' : ''}
+          ${interactive && !isSoldOut ? 'group-hover:-translate-y-1 group-hover:shadow-lg group-active:scale-90' : ''}
         `}
       >
         <Image

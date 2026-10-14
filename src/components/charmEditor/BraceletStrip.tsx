@@ -105,11 +105,16 @@ export default function BraceletStrip({
     stopDrag();
   };
 
-  /** Which spot is under this x position (works while charms are sliding). */
+  /** Which spot is under this x position (works while charms are sliding).
+   *  The pointer can be anywhere on the page: only its left/right position
+   *  counts, kept within the visible part of the strip. */
   const slotAtX = (clientX: number) => {
     const grid = gridRef.current;
-    if (!grid || !slotPitch) return dragTo;
-    const x = clientX - grid.getBoundingClientRect().left;
+    const strip = scrollbar.scrollRef.current;
+    if (!grid || !strip || !slotPitch) return dragTo;
+    const visible = strip.getBoundingClientRect();
+    const clampedX = Math.max(visible.left, Math.min(visible.right - 1, clientX));
+    const x = clampedX - grid.getBoundingClientRect().left;
     return Math.max(0, Math.min(maxSlots - 1, Math.floor(x / slotPitch)));
   };
 
@@ -122,7 +127,7 @@ export default function BraceletStrip({
     return 0;
   };
 
-  /** Finger drags: scroll the strip when the finger nears either edge. */
+  /** Scroll the strip when the pointer nears (or goes past) either edge. */
   const autoScroll = (clientX: number) => {
     const strip = scrollbar.scrollRef.current;
     if (!strip) return;
@@ -130,6 +135,28 @@ export default function BraceletStrip({
     if (clientX < rect.left + 40) strip.scrollLeft -= 12;
     else if (clientX > rect.right - 40) strip.scrollLeft += 12;
   };
+
+  // Mouse drags: follow the pointer over the whole page, not just the strip,
+  // and let go anywhere to drop. (Finger drags already track everywhere.)
+  useEffect(() => {
+    if (dragFrom === null) return;
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault(); // allows dropping here
+      autoScroll(e.clientX);
+      const target = slotAtX(e.clientX);
+      if (target !== dragTo) setDragTo(target);
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dropDrag();
+    };
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("drop", onDrop);
+    return () => {
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("drop", onDrop);
+    };
+  });
 
   const selected = selectedIndex !== null ? bracelet[selectedIndex] : null;
 
@@ -182,17 +209,6 @@ export default function BraceletStrip({
           ref={gridRef}
           className="grid gap-1 min-w-max"
           style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}
-          // Mouse drags: the landing spot follows the pointer's x position
-          onDragOver={(e) => {
-            if (dragFrom === null) return;
-            e.preventDefault();
-            const target = slotAtX(e.clientX);
-            if (target !== dragTo) setDragTo(target);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            dropDrag();
-          }}
         >
           {Array.from({ length: maxSlots }, (_, i) => {
             const charm = bracelet[i];

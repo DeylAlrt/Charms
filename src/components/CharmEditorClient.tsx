@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import { useBracelet } from './charmEditor/useBracelet';
 import { useCheckout } from './charmEditor/useCheckout';
 import BraceletStrip from './charmEditor/BraceletStrip';
 import CharmCatalog from './charmEditor/CharmCatalog';
 import CartDrawer from './charmEditor/CartDrawer';
 import SiteHeader from './SiteHeader';
+import type { Charm } from './charmEditorUtils';
 
 type Props = {
   charmFiles: string[];
@@ -19,6 +21,24 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     selectedBaseColor: bracelet.selectedBaseColor,
     subtotal: bracelet.subtotal,
   });
+
+  // The bracelet spot the customer tapped. While one is picked, the next
+  // charm tapped in the catalog goes into that exact spot.
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  // Forget the picked spot if it no longer exists (smaller bracelet size)
+  useEffect(() => {
+    if (selectedIndex !== null && selectedIndex >= bracelet.maxSlots) setSelectedIndex(null);
+  }, [selectedIndex, bracelet.maxSlots]);
+
+  const handleAddCharm = (charm: Charm) => {
+    if (selectedIndex !== null) {
+      bracelet.replaceCharmAt(selectedIndex, charm);
+      setSelectedIndex(null);
+    } else {
+      bracelet.addCharm(charm);
+    }
+  };
 
   return (
     <div
@@ -38,12 +58,14 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           selectedBaseColor={bracelet.selectedBaseColor}
           onBaseColorChange={bracelet.setSelectedBaseColor}
           onOpenCart={checkout.openCart}
-          onClear={bracelet.clear}
-          onSwapCharms={bracelet.swapCharms}
+          onClear={() => { bracelet.clear(); setSelectedIndex(null); }}
+          onMoveCharm={bracelet.moveCharm}
           onRemoveCharmAt={bracelet.removeCharmAt}
+          selectedIndex={selectedIndex}
+          onSelectIndex={setSelectedIndex}
         />
 
-        <CharmCatalog charmFiles={charmFiles} onAddCharm={bracelet.addCharm} />
+        <CharmCatalog charmFiles={charmFiles} onAddCharm={handleAddCharm} />
       </div>
 
       <CartDrawer

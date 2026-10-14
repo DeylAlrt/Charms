@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import DraggableCharm from '../DraggableCharm';
 import { baseColorOptions, type BaseColor, type Charm } from '../charmEditorUtils';
@@ -21,27 +21,44 @@ type BraceletStripProps = {
   onBaseColorChange: (color: BaseColor) => void;
   onOpenCart: () => void;
   onClear: () => void;
-  onSwapCharms: (fromIndex: number, toIndex: number) => void;
+  onMoveCharm: (fromIndex: number, toIndex: number) => void;
   onRemoveCharmAt: (index: number) => void;
+  /** The spot the customer tapped; the next catalog charm goes there. */
+  selectedIndex: number | null;
+  onSelectIndex: (index: number | null) => void;
 };
 
-/** The bracelet card: size/color/total controls, the slot strip (drag to reorder), and its mobile scrollbar. */
+/** An invisible picture for the browser to show under the mouse while
+ *  dragging, so only the charm sliding in the strip is visible (no ghost). */
+let blankDragImage: HTMLImageElement | null = null;
+const getBlankDragImage = (): HTMLImageElement => {
+  if (!blankDragImage) {
+    const img = document.createElement('img'); // ("Image" here is Next's component)
+    img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    blankDragImage = img;
+  }
+  return blankDragImage;
+};
+
 /** Bounces its charm in when it first appears (globals.css .charm-pop-in). */
 function PopIn({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
   const [pop] = useState(enabled); // decided once, so existing charms never bounce again
   return <span className={`inline-flex ${pop ? "charm-pop-in" : ""}`}>{children}</span>;
 }
 
+/**
+ * The bracelet card: size/color/total controls and the slot strip.
+ *  - Tap a spot to pick it; the next charm tapped in the catalog goes there.
+ *  - Drag any charm, plain links included (mouse or finger): the others slide left/right to open a
+ *    gap where it will land, and it drops into that gap.
+ */
 export default function BraceletStrip({
   bracelet, maxSlots, filled, subtotal,
   size, onSizeChange, selectedBaseColor, onBaseColorChange,
   onOpenCart, onClear,
-  onSwapCharms, onRemoveCharmAt,
+  onMoveCharm, onRemoveCharmAt,
+  selectedIndex, onSelectIndex,
 }: BraceletStripProps) {
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-  const [touchDraggingIndex, setTouchDraggingIndex] = useState<number | null>(null);
-  const [isDraggingCharm, setIsDraggingCharm] = useState(false);
   const [showFullDesign, setShowFullDesign] = useState(false);
   // No bounce while the page opens (and restores a saved design), only for later changes
   const [ready, setReady] = useState(false);
@@ -52,11 +69,69 @@ export default function BraceletStrip({
 
   const scrollbar = useBraceletScrollbar(maxSlots, size);
 
-  const handleSwap = (fromIndex: number, toIndex: number) => {
-    onSwapCharms(fromIndex, toIndex);
-    setSelectedIndex(null);
-    setDraggingIndex(null);
+  // Load the invisible drag picture early so it is ready for the first drag
+  useEffect(() => { getBlankDragImage(); }, []);
+
+  // --- Dragging: where the charm came from, where it would land now, and
+  // the distance between two spots (so the others slide exactly one spot).
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragTo, setDragTo] = useState<number | null>(null);
+  const [slotPitch, setSlotPitch] = useState(0);
+  // Just dropped: skip the slide-back and bounce so the new order appears in place
+  const [settling, setSettling] = useState(false);
+
+  const startDrag = (index: number) => {
+    const cells = gridRef.current?.children;
+    if (cells && cells.length > 1) {
+      setSlotPitch((cells[1] as HTMLElement).offsetLeft - (cells[0] as HTMLElement).offsetLeft);
+    }
+    setDragFrom(index);
+    setDragTo(index);
   };
+
+  const stopDrag = () => {
+    setDragFrom(null);
+    setDragTo(null);
+  };
+
+  const dropDrag = () => {
+    if (dragFrom !== null && dragTo !== null && dragFrom !== dragTo) {
+      setSettling(true);
+      onMoveCharm(dragFrom, dragTo);
+      onSelectIndex(null);
+      setTimeout(() => setSettling(false), 60);
+    }
+    stopDrag();
+  };
+
+  /** Which spot is under this x position (works while charms are sliding). */
+  const slotAtX = (clientX: number) => {
+    const grid = gridRef.current;
+    if (!grid || !slotPitch) return dragTo;
+    const x = clientX - grid.getBoundingClientRect().left;
+    return Math.max(0, Math.min(maxSlots - 1, Math.floor(x / slotPitch)));
+  };
+
+  /** How many spots the charm in spot `index` slides while dragging. */
+  const shiftFor = (index: number) => {
+    if (dragFrom === null || dragTo === null || dragFrom === dragTo) return 0;
+    if (index === dragFrom) return dragTo - dragFrom;
+    if (dragFrom < dragTo && index > dragFrom && index <= dragTo) return -1;
+    if (dragTo < dragFrom && index >= dragTo && index < dragFrom) return 1;
+    return 0;
+  };
+
+  /** Finger drags: scroll the strip when the finger nears either edge. */
+  const autoScroll = (clientX: number) => {
+    const strip = scrollbar.scrollRef.current;
+    if (!strip) return;
+    const rect = strip.getBoundingClientRect();
+    if (clientX < rect.left + 40) strip.scrollLeft -= 12;
+    else if (clientX > rect.right - 40) strip.scrollLeft += 12;
+  };
+
+  const selected = selectedIndex !== null ? bracelet[selectedIndex] : null;
 
   return (
     <div className="bg-white rounded-lg shadow-md m-1 mb-0 p-2 flex-shrink-0">
@@ -83,6 +158,19 @@ export default function BraceletStrip({
         </div>
       </div>
 
+      {selected && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-full bg-sky-tint-light px-3 py-1 text-xs text-navy">
+          <span>
+            {selected.isPlaceholder
+              ? 'Tap a charm below to put it in this spot'
+              : <>Tap a charm below to replace <strong>{selected.displayName || 'this charm'}</strong></>}
+          </span>
+          <button type="button" onClick={() => onSelectIndex(null)} className="pop flex-shrink-0 font-semibold text-accent-blue hover:underline">
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div
         ref={scrollbar.scrollRef}
         className="w-full overflow-x-auto pb-4 no-scrollbar"
@@ -90,95 +178,108 @@ export default function BraceletStrip({
         onScroll={scrollbar.updateMetrics}
         onTouchMove={(e) => e.preventDefault()}
       >
-        <div className="grid gap-1 min-w-max" style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}>
-          {Array.from({ length: maxSlots }, (_, i) => (
-            <div key={i} className="p-0 min-w-[60px]">
-              <div
-                className="w-full aspect-square bg-white/90 rounded-sm shadow-sm border-2 border-transparent flex items-center justify-center relative"
-                data-slot-index={i}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (draggingIndex !== null && draggingIndex !== i) handleSwap(draggingIndex, i);
-                }}
-              >
-                {bracelet[i] && (
-                  <>
-                    {selectedIndex === i && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveCharmAt(i);
-                          setSelectedIndex(null);
-                        }}
-                        className="absolute right-1 top-1 z-10 h-5 w-5 rounded-full bg-danger text-white text-[10px] flex items-center justify-center shadow"
-                        aria-label="Remove charm"
-                      >
-                        ×
-                      </button>
-                    )}
-                    <div
-                      draggable={!!bracelet[i] && !bracelet[i]?.isPlaceholder}
-                      onClick={() => setSelectedIndex(i)}
-                      onDragStart={(e) => {
-                        if (!bracelet[i]?.isPlaceholder) {
-                          setDraggingIndex(i);
-                          setSelectedIndex(i);
+        <div
+          ref={gridRef}
+          className="grid gap-1 min-w-max"
+          style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}
+          // Mouse drags: the landing spot follows the pointer's x position
+          onDragOver={(e) => {
+            if (dragFrom === null) return;
+            e.preventDefault();
+            const target = slotAtX(e.clientX);
+            if (target !== dragTo) setDragTo(target);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            dropDrag();
+          }}
+        >
+          {Array.from({ length: maxSlots }, (_, i) => {
+            const charm = bracelet[i];
+            const isReal = !!charm && !charm.isPlaceholder;
+            const isDragged = dragFrom === i;
+            return (
+              <div key={i} className="p-0 min-w-[60px]">
+                <div
+                  className={`w-full aspect-square bg-white/90 rounded-sm shadow-sm border-2 flex items-center justify-center relative transition-colors ${
+                    selectedIndex === i && dragFrom === null ? 'border-accent-blue' : 'border-transparent'
+                  }`}
+                  data-slot-index={i}
+                >
+                  {charm && (
+                    <>
+                      {selectedIndex === i && isReal && dragFrom === null && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveCharmAt(i);
+                            onSelectIndex(null);
+                          }}
+                          className="absolute right-1 top-1 z-20 h-5 w-5 rounded-full bg-danger text-white text-[10px] flex items-center justify-center shadow"
+                          aria-label="Remove charm"
+                        >
+                          ×
+                        </button>
+                      )}
+                      <div
+                        draggable
+                        onClick={() => onSelectIndex(selectedIndex === i ? null : i)}
+                        onDragStart={(e) => {
                           e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setDragImage(getBlankDragImage(), 0, 0);
                           e.dataTransfer.setData('text/plain', String(i));
-                        }
-                      }}
-                      onDragEnd={() => setDraggingIndex(null)}
-                      onTouchStart={(e) => {
-                        if (!bracelet[i]?.isPlaceholder) {
+                          // Next frame, so changing styles doesn't cancel the browser's drag
+                          requestAnimationFrame(() => startDrag(i));
+                        }}
+                        onDragEnd={stopDrag}
+                        onTouchStart={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          setTouchDraggingIndex(i);
-                          setSelectedIndex(i);
-                          setIsDraggingCharm(true);
-                        }
-                      }}
-                      onTouchMove={(e) => {
-                        if (touchDraggingIndex !== null && isDraggingCharm) {
+                          startDrag(i);
+                        }}
+                        onTouchMove={(e) => {
+                          if (dragFrom === null) return;
                           e.preventDefault();
                           e.stopPropagation();
-                        }
-                      }}
-                      onTouchEnd={(e) => {
-                        if (touchDraggingIndex !== null && isDraggingCharm) {
+                          const touch = e.touches[0];
+                          autoScroll(touch.clientX);
+                          const target = slotAtX(touch.clientX);
+                          if (target !== dragTo) setDragTo(target);
+                        }}
+                        onTouchEnd={(e) => {
+                          if (dragFrom === null) return;
                           e.preventDefault();
                           e.stopPropagation();
-                          const touch = e.changedTouches[0];
-                          const element = document.elementFromPoint(touch.clientX, touch.clientY);
-                          if (element) {
-                            const slotElement = element.closest('[data-slot-index]') as HTMLElement;
-                            if (slotElement) {
-                              const targetIndex = parseInt(slotElement.getAttribute('data-slot-index') || '-1', 10);
-                              if (targetIndex !== -1 && targetIndex !== touchDraggingIndex) {
-                                handleSwap(touchDraggingIndex, targetIndex);
-                              }
-                            }
+                          if (dragTo === dragFrom) {
+                            // A tap, not a drag: pick this spot (or un-pick it if already picked)
+                            onSelectIndex(selectedIndex === i ? null : i);
+                            stopDrag();
+                          } else {
+                            dropDrag();
                           }
-                        }
-                        setTouchDraggingIndex(null);
-                        setIsDraggingCharm(false);
-                      }}
-                      onTouchCancel={() => {
-                        setTouchDraggingIndex(null);
-                        setIsDraggingCharm(false);
-                      }}
-                      style={{ touchAction: 'none', userSelect: 'none' }}
-                      className="w-full h-full flex items-center justify-center"
-                    >
-                      <PopIn key={bracelet[i]?.id} enabled={ready}>
-                        <DraggableCharm charm={bracelet[i]} compact={true} interactive={false} />
-                      </PopIn>
-                    </div>
-                  </>
-                )}
+                        }}
+                        onTouchCancel={stopDrag}
+                        style={{
+                          touchAction: 'none',
+                          userSelect: 'none',
+                          transform: `translateX(${shiftFor(i) * slotPitch}px)${isDragged && dragTo !== dragFrom ? ' scale(1.08)' : ''}`,
+                          transition: settling ? 'none' : 'transform 0.2s ease',
+                          zIndex: isDragged ? 10 : 1, // above the neighbouring spots' boxes while sliding
+                          position: 'relative',
+                        }}
+                        className={`w-full h-full flex items-center justify-center ${isDragged ? 'drop-shadow-lg' : ''}`}
+                      >
+                        <PopIn key={charm.id} enabled={ready && !settling}>
+                          <DraggableCharm charm={charm} compact={true} interactive={false} />
+                        </PopIn>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

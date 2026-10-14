@@ -17,7 +17,7 @@ const calculateSubtotal = (bracelet: (Charm | undefined)[]) =>
 
 /**
  * Owns the bracelet's size, base color, and per-slot contents, plus every
- * mutation the rest of the app needs to perform on it (add/remove/swap/clear
+ * mutation the rest of the app needs to perform on it (add/remove/move/replace/clear
  * and the cart's quantity +/- buttons). Presentation-only interaction state
  * (which slot is selected, which is mid-drag) belongs to the components that
  * render the strip, not here.
@@ -102,13 +102,23 @@ export function useBracelet() {
     });
   };
 
-  const swapCharms = (fromIndex: number, toIndex: number) => {
+  /** Drag and drop: takes the charm out of `fromIndex` and slots it in at
+   *  `toIndex`; the charms in between shift one place to close the gap. */
+  const moveCharm = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
     setBracelet(prev => {
       const copy = [...prev];
-      [copy[fromIndex], copy[toIndex]] = [copy[toIndex], copy[fromIndex]];
+      const [moved] = copy.splice(fromIndex, 1);
+      copy.splice(toIndex, 0, moved);
       return copy;
     });
+  };
+
+  /** Puts `charm` in this exact spot, replacing whatever is there. */
+  const replaceCharmAt = (index: number, charm: Charm) => {
+    setBracelet(prev => prev.map((item, i) =>
+      i === index ? { ...charm, id: `bracelet-${Date.now()}-${Math.random()}` } : item
+    ));
   };
 
   /** Cart "-" button: clears one instance of this filename. */
@@ -143,7 +153,8 @@ export function useBracelet() {
     clear,
     addCharm,
     removeCharmAt,
-    swapCharms,
+    moveCharm,
+    replaceCharmAt,
     decrementCharm,
     incrementCharm,
     removeAllOfFilename,

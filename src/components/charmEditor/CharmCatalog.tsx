@@ -2,53 +2,34 @@
 
 import { useEffect, useRef, useState } from 'react';
 import DraggableCharm from '../DraggableCharm';
-import { UNCATALOGUED, charmImageUrl, isCharmSoldOut, type Charm } from '../charmEditorUtils';
+import { charmImageUrl, isCharmSoldOut, type Charm } from '../charmEditorUtils';
 import { CATALOGUE_CATEGORIES, CATALOGUE_ENTRIES } from '../charmCatalogue';
 
 /**
  * Builds catalog entries in the main site's order, from its catalogue rather
- * than the filenames. Catalogue links whose image is missing are skipped;
- * images that aren't in the catalogue are only listed for the owner.
+ * than the filenames. Catalogue links whose image is missing are skipped.
  */
-function buildCatalog(charmFiles: string[], ownerMode: boolean): Charm[] {
+function buildCatalog(charmFiles: string[]): Charm[] {
   const onDisk = new Set(charmFiles);
-  const catalogued = CATALOGUE_ENTRIES
+  return CATALOGUE_ENTRIES
     .filter(entry => onDisk.has(entry.file))
-    .map(entry => ({ filename: entry.file, category: entry.category, displayName: entry.displayName }));
-  const known = new Set(CATALOGUE_ENTRIES.map(entry => entry.file));
-  const uncatalogued = ownerMode
-    ? charmFiles.filter(file => !known.has(file)).map(file => ({
-        filename: file,
-        category: UNCATALOGUED,
-        displayName: file.replace(/\.[^.]+$/, "").replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim(),
-      }))
-    : [];
-
-  return [...catalogued, ...uncatalogued].map((charm, i) => ({
-    ...charm,
-    id: `catalog-${i}`,
-    img: charmImageUrl(charm.filename),
-    catalogItem: true,
-  }));
+    .map((entry, i) => ({
+      id: `catalog-${i}`,
+      filename: entry.file,
+      category: entry.category,
+      displayName: entry.displayName,
+      img: charmImageUrl(entry.file),
+      catalogItem: true,
+    }));
 }
 
 type CharmCatalogProps = {
   charmFiles: string[];
-  ownerMode: boolean;
-  outOfStockMap: Record<string, boolean>;
-  onToggleOutOfStock: (filename: string) => void;
   onAddCharm: (charm: Charm) => void;
-  onDeleteCharm: (filename: string) => void;
-  onOpenRenameModal: (filename: string) => void;
-  /** Rendered between the category filter and the charm grid (e.g. the owner-only color manager). */
-  panelBetween?: React.ReactNode;
 };
 
-/** Category filter bar plus the scrollable charm grid, with owner-only inventory controls per charm. */
-export default function CharmCatalog({
-  charmFiles, ownerMode, outOfStockMap, onToggleOutOfStock,
-  onAddCharm, onDeleteCharm, onOpenRenameModal, panelBetween,
-}: CharmCatalogProps) {
+/** Category filter bar plus the scrollable charm grid. */
+export default function CharmCatalog({ charmFiles, onAddCharm }: CharmCatalogProps) {
   const [activeCategory, setActiveCategory] = useState('All');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const categoryRowRef = useRef<HTMLDivElement | null>(null);
@@ -86,10 +67,10 @@ export default function CharmCatalog({
       row.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
-  }, [ownerMode]);
+  }, []);
 
-  const charmData = buildCatalog(charmFiles, ownerMode);
-  const categories = ["All", ...CATALOGUE_CATEGORIES, ...(ownerMode ? [UNCATALOGUED] : [])];
+  const charmData = buildCatalog(charmFiles);
+  const categories = ["All", ...CATALOGUE_CATEGORIES];
   const categoryCounts: Record<string, number> = { All: charmData.length };
   for (const charm of charmData) {
     categoryCounts[charm.category!] = (categoryCounts[charm.category!] || 0) + 1;
@@ -98,7 +79,7 @@ export default function CharmCatalog({
   const filteredCharms = activeCategory === 'All' ? charmData : charmData.filter(c => c.category === activeCategory);
 
   const handleTap = (charm: Charm) => {
-    if (!isCharmSoldOut(charm.filename, outOfStockMap)) onAddCharm(charm);
+    if (!isCharmSoldOut(charm.filename)) onAddCharm(charm);
   };
 
   return (
@@ -150,8 +131,6 @@ export default function CharmCatalog({
         )}
       </div>
 
-      {panelBetween}
-
       {/* CHARM GRID */}
       <div
         ref={containerRef}
@@ -159,30 +138,11 @@ export default function CharmCatalog({
         style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
       >
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
-          {filteredCharms.map((charm) => {
-            const soldOut = isCharmSoldOut(charm.filename, outOfStockMap);
-            return (
-              <div key={charm.id} className="relative group pointer-events-auto">
-                <DraggableCharm charm={charm} onTap={handleTap} soldOut={soldOut} />
-                <div className="absolute right-1 bottom-1 flex flex-col gap-1 items-end invisible group-hover:visible">
-                  <div className="flex gap-1">
-                    {ownerMode && <button onClick={() => onDeleteCharm(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Delete file">Delete</button>}
-                    {ownerMode && <button onClick={() => onOpenRenameModal(charm.filename)} className="text-[10px] bg-white/90 px-1 rounded" title="Rename file">Rename</button>}
-                  </div>
-                  {ownerMode && (
-                    <label className="flex items-center gap-1 bg-white/90 px-1 rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!outOfStockMap[charm.filename]}
-                        onChange={() => onToggleOutOfStock(charm.filename)}
-                      />
-                      <span className="text-[9px] text-muted">Out of stock</span>
-                    </label>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {filteredCharms.map((charm) => (
+            <div key={charm.id} className="relative group pointer-events-auto">
+              <DraggableCharm charm={charm} onTap={handleTap} soldOut={isCharmSoldOut(charm.filename)} />
+            </div>
+          ))}
         </div>
         <div className="h-8" />
       </div>

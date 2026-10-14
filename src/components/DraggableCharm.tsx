@@ -11,7 +11,7 @@ type DraggableCharmProps = {
 };
 
 export default function DraggableCharm({ charm, compact = false, onTap, interactive = true, soldOut }: DraggableCharmProps) {
-  const isSoldOut = soldOut ?? isCharmSoldOut(charm.filename, {});
+  const isSoldOut = soldOut ?? isCharmSoldOut(charm.filename);
 
   return (
     <button

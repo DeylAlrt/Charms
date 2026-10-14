@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import DraggableCharm from '../DraggableCharm';
-import type { BaseColor, Charm } from '../charmEditorUtils';
+import { baseColorOptions, type BaseColor, type Charm } from '../charmEditorUtils';
 import { useBraceletScrollbar } from './useBraceletScrollbar';
 import FullDesignModal from './FullDesignModal';
 import type { BRACELET_SIZES } from './useBracelet';
@@ -19,10 +19,6 @@ type BraceletStripProps = {
   onSizeChange: (size: BraceletSize) => void;
   selectedBaseColor: BaseColor;
   onBaseColorChange: (color: BaseColor) => void;
-  availableBaseColors: string[];
-  ownerMode: boolean;
-  onOwnerLogin: () => void;
-  onOpenUpload: () => void;
   onOpenCart: () => void;
   onClear: () => void;
   onSwapCharms: (fromIndex: number, toIndex: number) => void;
@@ -32,8 +28,8 @@ type BraceletStripProps = {
 /** The bracelet card: size/color/total controls, the slot strip (drag to reorder), and its mobile scrollbar. */
 export default function BraceletStrip({
   bracelet, maxSlots, filled, subtotal,
-  size, onSizeChange, selectedBaseColor, onBaseColorChange, availableBaseColors,
-  ownerMode, onOwnerLogin, onOpenUpload, onOpenCart, onClear,
+  size, onSizeChange, selectedBaseColor, onBaseColorChange,
+  onOpenCart, onClear,
   onSwapCharms, onRemoveCharmAt,
 }: BraceletStripProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -62,15 +58,13 @@ export default function BraceletStrip({
             <option value="xl">XL (22)</option>
           </select>
           <select value={selectedBaseColor} onChange={(e) => onBaseColorChange(e.target.value as BaseColor)} className="text-xs px-2 py-1 border border-sky-tint rounded-md bg-white text-navy capitalize cursor-pointer transition-colors hover:border-accent-blue">
-            {availableBaseColors.map(c => <option key={c} value={c}>{c}</option>)}
+            {baseColorOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <button onClick={onOwnerLogin} style={{ opacity: 0, width: '24px', height: '24px', border: 'none', background: 'none' }}></button>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-sm md:text-lg font-bold text-accent-blue">
             Total: {subtotal.toFixed(2)} AED
           </div>
-          {ownerMode && <button onClick={onOpenUpload} className="bg-accent-blue text-white px-3 py-1 rounded-full text-xs hover:bg-pastel-blue hover:text-navy transition-colors">Upload</button>}
           <button onClick={() => setShowFullDesign(true)} className="lift border border-navy text-navy px-3 py-1 rounded-full text-xs hover:bg-sky-tint">View Full Design</button>
           <button onClick={onOpenCart} className="lift bg-navy text-white px-3 py-1 rounded-full text-xs hover:bg-pastel-blue hover:text-navy">Cart</button>
           <button onClick={onClear} className="lift bg-danger text-white px-3 py-1 rounded-full text-xs hover:opacity-90">Clear</button>

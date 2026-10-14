@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getPlaceholderCharm, getPrice, type BaseColor, type Charm } from '../charmEditorUtils';
+import { baseColorOptions, getPlaceholderCharm, getPrice, type BaseColor, type Charm } from '../charmEditorUtils';
 import { getCatalogueEntry } from '../charmCatalogue';
 
 const SAVED_DESIGN_KEY = 'navillera-bracelet-design';
@@ -40,7 +40,8 @@ export function useBracelet() {
     try {
       const saved = JSON.parse(sessionStorage.getItem(SAVED_DESIGN_KEY) || 'null');
       if (saved && saved.size in BRACELET_SIZES && Array.isArray(saved.bracelet)) {
-        const color = saved.color as BaseColor;
+        // A colour that's no longer offered falls back to Silver
+        const color: BaseColor = (baseColorOptions as readonly string[]).includes(saved.color) ? saved.color : 'Silver';
         setSize(saved.size);
         setSelectedBaseColor(color);
         setBracelet(saved.bracelet.map((item: Charm | null) =>

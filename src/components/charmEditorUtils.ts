@@ -1,6 +1,11 @@
 import { getCatalogueEntry } from "./charmCatalogue";
 
-export const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Brown", "Red", "Purple", "Pink"] as const;
+/**
+ * Base bracelet colours customers can choose (empty spots are plain links in
+ * this colour). To offer or stop offering a colour, edit this list — each one
+ * needs a "Plain Links/<Colour>_Plain_Charm.png" in the catalogue.
+ */
+export const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Red", "Purple", "Pink"] as const;
 export type BaseColor = typeof baseColorOptions[number];
 
 export type Charm = {
@@ -14,9 +19,6 @@ export type Charm = {
   isPlaceholder?: boolean;
 };
 
-/** Category for charm images on disk that aren't in the main site's catalogue (shown to the owner only). */
-export const UNCATALOGUED = "Uncatalogued";
-
 /** Price in AED, taken from the main site's catalogue (see charmCatalogue.ts). */
 export const getPrice = (filename: string): number => getCatalogueEntry(filename)?.price ?? 0;
 
@@ -24,8 +26,9 @@ export const getPrice = (filename: string): number => getCatalogueEntry(filename
 export const charmImageUrl = (filename: string): string =>
   `/charms/${filename.split("/").map(encodeURIComponent).join("/")}`;
 
-export const isCharmSoldOut = (filename: string, outOfStock: Record<string, boolean>): boolean =>
-  !!outOfStock[filename] || !!getCatalogueEntry(filename)?.soldOut || filename.toLowerCase().includes("sold");
+/** Sold out = marked in the main site's catalogue (soldOut: [...] in catalogue-data.js). */
+export const isCharmSoldOut = (filename: string): boolean =>
+  !!getCatalogueEntry(filename)?.soldOut || filename.toLowerCase().includes("sold");
 
 /** The plain link that fills empty bracelet slots in the given base color. */
 export const plainCharmFile = (color: BaseColor) => `Plain Links/${color}_Plain_Charm.png`;

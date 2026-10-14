@@ -1,16 +1,9 @@
 "use client";
 
 import { useBracelet } from './charmEditor/useBracelet';
-import { useAdminSession } from './charmEditor/useAdminSession';
-import { useOutOfStock } from './charmEditor/useOutOfStock';
-import { useBaseColorAvailability } from './charmEditor/useBaseColorAvailability';
-import { useCharmFileManager } from './charmEditor/useCharmFileManager';
 import { useCheckout } from './charmEditor/useCheckout';
 import BraceletStrip from './charmEditor/BraceletStrip';
 import CharmCatalog from './charmEditor/CharmCatalog';
-import AdminColorManager from './charmEditor/AdminColorManager';
-import RenameModal, { RenameUndoSnackbar } from './charmEditor/RenameModal';
-import UploadModal from './charmEditor/UploadModal';
 import CartDrawer from './charmEditor/CartDrawer';
 import SiteHeader from './SiteHeader';
 
@@ -20,10 +13,6 @@ type Props = {
 
 export default function CharmEditorClient({ charmFiles }: Props) {
   const bracelet = useBracelet();
-  const admin = useAdminSession();
-  const outOfStock = useOutOfStock();
-  const baseColors = useBaseColorAvailability(bracelet.selectedBaseColor, bracelet.setSelectedBaseColor);
-  const files = useCharmFileManager();
   const checkout = useCheckout({
     bracelet: bracelet.bracelet,
     maxSlots: bracelet.maxSlots,
@@ -48,32 +37,13 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           onSizeChange={bracelet.setSize}
           selectedBaseColor={bracelet.selectedBaseColor}
           onBaseColorChange={bracelet.setSelectedBaseColor}
-          availableBaseColors={baseColors.availableBaseColors}
-          ownerMode={admin.ownerMode}
-          onOwnerLogin={admin.login}
-          onOpenUpload={files.upload.openModal}
           onOpenCart={checkout.openCart}
           onClear={bracelet.clear}
           onSwapCharms={bracelet.swapCharms}
           onRemoveCharmAt={bracelet.removeCharmAt}
         />
 
-        <RenameModal rename={files.rename} />
-        <RenameUndoSnackbar lastRename={files.lastRename} onUndo={files.undoLastRename} />
-        <UploadModal upload={files.upload} />
-
-        <CharmCatalog
-          charmFiles={charmFiles}
-          ownerMode={admin.ownerMode}
-          outOfStockMap={outOfStock.outOfStockMap}
-          onToggleOutOfStock={outOfStock.toggleOutOfStock}
-          onAddCharm={bracelet.addCharm}
-          onDeleteCharm={files.deleteCharm}
-          onOpenRenameModal={files.rename.openFor}
-          panelBetween={admin.ownerMode && (
-            <AdminColorManager colorStatuses={baseColors.colorStatuses} onToggle={baseColors.toggleColorStatus} />
-          )}
-        />
+        <CharmCatalog charmFiles={charmFiles} onAddCharm={bracelet.addCharm} />
       </div>
 
       <CartDrawer

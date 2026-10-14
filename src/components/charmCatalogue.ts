@@ -196,7 +196,7 @@ export const CATALOGUE_SECTIONS: CatalogueSection[] = [
     },
   },
   {
-    category: 'Flags', price: 8.00, sortItems: true,
+    category: 'Flags', price: 8.99, sortItems: true,
     items: [
       { label: 'Philippines', file: 'Flag Links/Flags (1).png' },
       { label: 'Netherlands', file: 'Flag Links/Flags (2).png' },

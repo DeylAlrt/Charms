@@ -2,7 +2,6 @@
 
 import { useBracelet } from './charmEditor/useBracelet';
 import { useAdminSession } from './charmEditor/useAdminSession';
-import { useCharmStock } from './charmEditor/useCharmStock';
 import { useOutOfStock } from './charmEditor/useOutOfStock';
 import { useBaseColorAvailability } from './charmEditor/useBaseColorAvailability';
 import { useCharmFileManager } from './charmEditor/useCharmFileManager';
@@ -22,7 +21,6 @@ type Props = {
 export default function CharmEditorClient({ charmFiles }: Props) {
   const bracelet = useBracelet();
   const admin = useAdminSession();
-  const stock = useCharmStock();
   const outOfStock = useOutOfStock();
   const baseColors = useBaseColorAvailability(bracelet.selectedBaseColor, bracelet.setSelectedBaseColor);
   const files = useCharmFileManager();
@@ -69,9 +67,6 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           ownerMode={admin.ownerMode}
           outOfStockMap={outOfStock.outOfStockMap}
           onToggleOutOfStock={outOfStock.toggleOutOfStock}
-          charmStock={stock.charmStock}
-          stockLoading={stock.stockLoading}
-          onUpdateStock={stock.updateCharmStock}
           onAddCharm={bracelet.addCharm}
           onDeleteCharm={files.deleteCharm}
           onOpenRenameModal={files.rename.openFor}

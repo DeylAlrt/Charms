@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import DraggableCharm from '../DraggableCharm';
-import { UNCATALOGUED, charmImageUrl, isCharmSoldOut, stockKeyFor, type Charm } from '../charmEditorUtils';
+import { UNCATALOGUED, charmImageUrl, isCharmSoldOut, type Charm } from '../charmEditorUtils';
 import { CATALOGUE_CATEGORIES, CATALOGUE_ENTRIES } from '../charmCatalogue';
-import { getStockColor } from './useCharmStock';
 
 /**
  * Builds catalog entries in the main site's order, from its catalogue rather
@@ -38,9 +37,6 @@ type CharmCatalogProps = {
   ownerMode: boolean;
   outOfStockMap: Record<string, boolean>;
   onToggleOutOfStock: (filename: string) => void;
-  charmStock: Record<string, number>;
-  stockLoading: Record<string, boolean>;
-  onUpdateStock: (charmName: string, quantity: number) => void;
   onAddCharm: (charm: Charm) => void;
   onDeleteCharm: (filename: string) => void;
   onOpenRenameModal: (filename: string) => void;
@@ -51,7 +47,7 @@ type CharmCatalogProps = {
 /** Category filter bar plus the scrollable charm grid, with owner-only inventory controls per charm. */
 export default function CharmCatalog({
   charmFiles, ownerMode, outOfStockMap, onToggleOutOfStock,
-  charmStock, stockLoading, onUpdateStock, onAddCharm, onDeleteCharm, onOpenRenameModal, panelBetween,
+  onAddCharm, onDeleteCharm, onOpenRenameModal, panelBetween,
 }: CharmCatalogProps) {
   const [activeCategory, setActiveCategory] = useState('All');
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -164,7 +160,6 @@ export default function CharmCatalog({
       >
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2 justify-items-center">
           {filteredCharms.map((charm) => {
-            const stockKey = stockKeyFor(charm.filename);
             const soldOut = isCharmSoldOut(charm.filename, outOfStockMap);
             return (
               <div key={charm.id} className="relative group pointer-events-auto">
@@ -183,24 +178,6 @@ export default function CharmCatalog({
                       />
                       <span className="text-[9px] text-muted">Out of stock</span>
                     </label>
-                  )}
-                  {ownerMode && (
-                    <div className="flex items-center gap-1 bg-white/90 px-1 rounded">
-                      <span className="text-[9px] text-muted">Stock:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={charmStock[stockKey] || 0}
-                        onChange={(e) => onUpdateStock(stockKey, parseInt(e.target.value) || 0)}
-                        disabled={stockLoading[stockKey]}
-                        className={`
-                          w-14 px-1 py-0.5 text-[11px] text-center border rounded
-                          focus:outline-none focus:ring-1 focus:ring-accent-blue
-                          ${getStockColor(charmStock[stockKey] || 0)}
-                          ${stockLoading[stockKey] ? 'opacity-50' : ''}
-                        `}
-                      />
-                    </div>
                   )}
                 </div>
               </div>

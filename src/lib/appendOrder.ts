@@ -4,8 +4,8 @@ const ORDERS_SHEET = 'Sheet1';
 
 /**
  * Appends a confirmed order to the same Orders sheet/column layout that
- * the existing pay-on-pickup flow writes to (see handleOrderSubmission in
- * src/app/api/stock/route.ts) — so paid-online orders show up identically
+ * the Cash on Delivery / Bank Transfer flow writes to (see
+ * src/app/api/orders/route.ts) — so paid-online orders show up identically
  * to cash orders, just with an extra "Paid Online" marker in the size
  * field's sibling data if the caller includes one.
  */

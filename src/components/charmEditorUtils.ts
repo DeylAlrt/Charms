@@ -24,10 +24,6 @@ export const getPrice = (filename: string): number => getCatalogueEntry(filename
 export const charmImageUrl = (filename: string): string =>
   `/charms/${filename.split("/").map(encodeURIComponent).join("/")}`;
 
-/** Basename without extension — the key used for stock counts in the Stock sheet. */
-export const stockKeyFor = (filename: string): string =>
-  filename.split("/").pop()!.replace(/\.(png|jpg|jpeg)$/i, "");
-
 export const isCharmSoldOut = (filename: string, outOfStock: Record<string, boolean>): boolean =>
   !!outOfStock[filename] || !!getCatalogueEntry(filename)?.soldOut || filename.toLowerCase().includes("sold");
 

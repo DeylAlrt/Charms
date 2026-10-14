@@ -316,7 +316,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     // notifies the shop, so an order should still go through if this fails.
     // The sheet's old "Pickup Time" column (C) now holds the payment method.
     try {
-      const sheetResponse = await fetch('/api/stock', {
+      const sheetResponse = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

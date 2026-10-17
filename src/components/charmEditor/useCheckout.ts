@@ -193,7 +193,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       const imageUrl = isEmpty ? plainCharmUrl : baseUrl + item.img;
       const charmName = isEmpty
         ? (i < maxSlots ? `${selectedBaseColor} Plain` : 'Empty')
-        : orderName(item);
+        : item.pairId ? `${orderName(item)} — twin chain, half ${(item.half ?? 0) + 1} of 2` : orderName(item);
 
       fields[`charm_${i + 1}_url`] = imageUrl;
       fields[`charm_${i + 1}_name`] = charmName;
@@ -243,7 +243,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     const deliveryText = describeDelivery(deliveryOption, address);
     const total = subtotalAfterDiscount + deliveryFee;
     const charmsList = bracelet
-      .filter(item => item && !item.isPlaceholder)
+      .filter(item => item && !item.isPlaceholder && item.half !== 1) // a twin chain is listed once
       .map(orderName)
       .join(', ');
     const baseUrl = window.location.origin;

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import DraggableCharm from '../DraggableCharm';
+import { StripCharmPicture, TwinChainLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry } from './StripLinks';
+import { partnerOf } from './twinChains';
 import { baseColorOptions, type BaseColor, type Charm } from '../charmEditorUtils';
 import { useBraceletScrollbar } from './useBraceletScrollbar';
 import FullDesignModal from './FullDesignModal';
@@ -19,10 +20,11 @@ type BraceletStripProps = {
   onSizeChange: (size: BraceletSize) => void;
   selectedBaseColor: BaseColor;
   onBaseColorChange: (color: BaseColor) => void;
-  onOpenCart: () => void;
   onClear: () => void;
   onMoveCharm: (fromIndex: number, toIndex: number) => void;
   onRemoveCharmAt: (index: number) => void;
+  /** A short message to show above the strip (e.g. a twin chain stretched too far). */
+  notice: string | null;
   /** The spot the customer tapped; the next catalog charm goes there. */
   selectedIndex: number | null;
   onSelectIndex: (index: number | null) => void;
@@ -43,7 +45,7 @@ const getBlankDragImage = (): HTMLImageElement => {
 /** Bounces its charm in when it first appears (globals.css .charm-pop-in). */
 function PopIn({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
   const [pop] = useState(enabled); // decided once, so existing charms never bounce again
-  return <span className={`inline-flex ${pop ? "charm-pop-in" : ""}`}>{children}</span>;
+  return <span className={`absolute inset-0 block ${pop ? "charm-pop-in" : ""}`}>{children}</span>;
 }
 
 /**
@@ -55,8 +57,8 @@ function PopIn({ enabled, children }: { enabled: boolean; children: React.ReactN
 export default function BraceletStrip({
   bracelet, maxSlots, filled, subtotal,
   size, onSizeChange, selectedBaseColor, onBaseColorChange,
-  onOpenCart, onClear,
-  onMoveCharm, onRemoveCharmAt,
+  onClear,
+  onMoveCharm, onRemoveCharmAt, notice,
   selectedIndex, onSelectIndex,
 }: BraceletStripProps) {
   const [showFullDesign, setShowFullDesign] = useState(false);
@@ -159,6 +161,15 @@ export default function BraceletStrip({
   });
 
   const selected = selectedIndex !== null ? bracelet[selectedIndex] : null;
+  // A twin chain is picked as a pair: its other half is highlighted too
+  const selectedPartner = selectedIndex !== null ? partnerOf(bracelet, selectedIndex) : -1;
+
+  // Room under the spots for dangles and twin chains, and where to draw their chains
+  const hang = hangRoom(bracelet.slice(0, maxSlots));
+  const geometry = useSpotGeometry(gridRef, [maxSlots, hang]);
+  const positionOf = (i: number) => i + shiftFor(i);
+  const flipped = mirroredSpots(bracelet.slice(0, maxSlots), positionOf);
+  const meets = meetingSides(bracelet.slice(0, maxSlots));
 
   return (
     <div className="bg-white rounded-lg shadow-md m-1 mb-0 p-2 flex-shrink-0">
@@ -180,17 +191,24 @@ export default function BraceletStrip({
             Total: {subtotal.toFixed(2)} AED
           </div>
           <button onClick={() => setShowFullDesign(true)} className="lift border border-navy text-navy px-3 py-1 rounded-full text-xs hover:bg-sky-tint">View Full Design</button>
-          <button onClick={onOpenCart} className="lift bg-navy text-white px-3 py-1 rounded-full text-xs hover:bg-pastel-blue hover:text-navy">Cart</button>
           <button onClick={onClear} className="lift bg-danger text-white px-3 py-1 rounded-full text-xs hover:opacity-90">Clear</button>
         </div>
       </div>
+
+      {notice && (
+        <div role="status" className="mb-2 rounded-full bg-danger/10 px-3 py-1 text-xs font-semibold text-danger">
+          {notice}
+        </div>
+      )}
 
       {selected && (
         <div className="mb-2 flex items-center justify-between gap-2 rounded-full bg-sky-tint-light px-3 py-1 text-xs text-navy">
           <span>
             {selected.isPlaceholder
               ? 'Tap a charm below to put it in this spot'
-              : <>Tap a charm below to replace <strong>{selected.displayName || 'this charm'}</strong></>}
+              : selected.pairId
+                ? <>Tap a charm below to replace the <strong>{selected.displayName || 'twin chain'}</strong> twin chain (both halves)</>
+                : <>Tap a charm below to replace <strong>{selected.displayName || 'this charm'}</strong></>}
           </span>
           <button type="button" onClick={() => onSelectIndex(null)} className="pop flex-shrink-0 font-semibold text-accent-blue hover:underline">
             Cancel
@@ -207,18 +225,20 @@ export default function BraceletStrip({
       >
         <div
           ref={gridRef}
-          className="grid gap-1 min-w-max"
-          style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'center' }}
+          className="relative grid gap-1 min-w-max"
+          style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'start', ...spotVar(geometry) }}
         >
           {Array.from({ length: maxSlots }, (_, i) => {
             const charm = bracelet[i];
             const isReal = !!charm && !charm.isPlaceholder;
             const isDragged = dragFrom === i;
+            const isPicked = (selectedIndex === i || selectedPartner === i) && dragFrom === null;
             return (
-              <div key={i} className="p-0 min-w-[60px]">
+              // Bottom padding (a % of the spot's width) leaves room for anything hanging below
+              <div key={i} className="p-0 min-w-[60px]" style={{ paddingBottom: `${hang * 100}%` }}>
                 <div
                   className={`w-full aspect-square bg-white/90 rounded-sm shadow-sm border-2 flex items-center justify-center relative transition-colors ${
-                    selectedIndex === i && dragFrom === null ? 'border-accent-blue' : 'border-transparent'
+                    isPicked ? 'border-accent-blue' : 'border-transparent'
                   }`}
                   data-slot-index={i}
                 >
@@ -279,15 +299,22 @@ export default function BraceletStrip({
                         style={{
                           touchAction: 'none',
                           userSelect: 'none',
-                          transform: `translateX(${shiftFor(i) * slotPitch}px)${isDragged && dragTo !== dragFrom ? ' scale(1.08)' : ''}`,
+                          // Only a sliding/dragged charm gets its own layer; otherwise its hanging part
+                          // must be free to go under the neighbouring links (see StripLinks)
+                          transform: shiftFor(i) || isDragged
+                            ? `translateX(${shiftFor(i) * slotPitch}px)${isDragged && dragTo !== dragFrom ? ' scale(1.08)' : ''}`
+                            : undefined,
                           transition: settling ? 'none' : 'transform 0.2s ease',
-                          zIndex: isDragged ? 10 : 1, // above the neighbouring spots' boxes while sliding
+                          // While moving (dragged, or sliding aside to make room) a charm passes over the
+                          // next spot's white square, so it needs a layer above those squares — otherwise
+                          // it looks faded. Charms at rest stay layer-free (see the comment above).
+                          zIndex: isDragged ? 10 : shiftFor(i) ? 5 : undefined,
                           position: 'relative',
                         }}
-                        className={`w-full h-full flex items-center justify-center ${isDragged ? 'drop-shadow-lg' : ''}`}
+                        className={`w-full h-full ${isDragged ? 'drop-shadow-lg' : ''}`}
                       >
                         <PopIn key={charm.id} enabled={ready && !settling}>
-                          <DraggableCharm charm={charm} compact={true} interactive={false} />
+                          <StripCharmPicture charm={charm} mirrored={flipped.has(i)} meet={dragFrom === null ? meets.get(i) : undefined} gapPx={2} />
                         </PopIn>
                       </div>
                     </>
@@ -296,6 +323,7 @@ export default function BraceletStrip({
               </div>
             );
           })}
+          <TwinChainLayer bracelet={bracelet.slice(0, maxSlots)} geometry={geometry} positionOf={positionOf} />
         </div>
       </div>
 

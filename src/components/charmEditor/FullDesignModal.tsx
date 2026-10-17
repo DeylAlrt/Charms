@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from 'react';
-import Image from 'next/image';
+import { useEffect, useRef } from 'react';
 import type { Charm } from '../charmEditorUtils';
+import { StripCharmPicture, TwinChainLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry } from './StripLinks';
 
 type FullDesignModalProps = {
   open: boolean;
@@ -11,6 +11,28 @@ type FullDesignModalProps = {
   maxSlots: number;
   filled: number;
 };
+
+function BraceletRow({ slots }: { slots: Charm[] }) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const hang = hangRoom(slots);
+  const geometry = useSpotGeometry(rowRef, [slots.length, hang]);
+  const flipped = mirroredSpots(slots);
+  const meets = meetingSides(slots);
+  return (
+    <div ref={rowRef} className="relative flex justify-center items-start" style={spotVar(geometry)}>
+      {slots.map((charm, i) => (
+        <div key={i} style={{ width: `calc(100% / ${slots.length})`, maxWidth: 44 }}>
+          <div className="relative aspect-square">
+            {charm && <StripCharmPicture charm={charm} mirrored={flipped.has(i)} meet={meets.get(i)} />}
+          </div>
+          {/* Room for anything hanging below (a % of this spot's width) */}
+          <div style={{ paddingBottom: `${hang * 100}%` }} />
+        </div>
+      ))}
+      <TwinChainLayer bracelet={slots} geometry={geometry} />
+    </div>
+  );
+}
 
 /**
  * Shows the whole bracelet in one row, every link side by side like the real
@@ -61,29 +83,10 @@ export default function FullDesignModal({ open, onClose, bracelet, maxSlots, fil
             You can take a screenshot for your own reference.
           </p>
 
-          {/* The bracelet: every link the same width, touching, in one row */}
+          {/* The bracelet: every link the same width, touching, in one row,
+              with dangles and twin chains hanging below */}
           <div className="bg-sky-tint-light border border-sky-tint rounded-xl px-2 sm:px-4 py-6 sm:py-8">
-            <div className="flex justify-center">
-              {slots.map((charm, i) => (
-                <div
-                  key={i}
-                  className="relative aspect-square"
-                  style={{ width: `calc(100% / ${maxSlots})`, maxWidth: 44 }}
-                >
-                  {charm && (
-                    <Image
-                      src={charm.img}
-                      alt={charm.isPlaceholder ? 'Plain link' : (charm.displayName || charm.filename)}
-                      fill
-                      sizes="44px"
-                      unoptimized
-                      draggable={false}
-                      className="object-contain select-none"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
+            <BraceletRow slots={slots} />
           </div>
 
           <p className="text-center text-xs sm:text-sm font-semibold text-navy mt-3">

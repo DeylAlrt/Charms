@@ -4,6 +4,7 @@ import Image from "next/image";
 import { getPrice, type Charm } from '../charmEditorUtils';
 import type { useCheckout } from './useCheckout';
 import { DELIVERY_METHODS, DELIVERY_OPTIONS, PAYMENT_OPTIONS, formatFee } from './orderOptions';
+import { thumbUrl } from './stripImages';
 
 // 16px+ text on form fields keeps iOS Safari from zooming in when they're tapped.
 const LABEL = 'flex flex-col gap-1.5 text-base font-semibold text-gray-700';
@@ -70,7 +71,8 @@ type CartDrawerProps = {
 function groupCartItems(bracelet: Charm[]) {
   const cartItems: Record<string, { item: Charm; count: number }> = {};
   bracelet.forEach(item => {
-    if (!item) return;
+    // A twin chain is one item in the cart (sold as a pair), counted on its first half
+    if (!item || item.half === 1) return;
     const key = item.filename;
     if (cartItems[key]) {
       cartItems[key].count++;
@@ -131,7 +133,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                       &times;
                     </button>
                     <div className="w-[72px] h-[72px] flex-shrink-0 rounded-xl bg-white flex items-center justify-center overflow-hidden">
-                      <Image src={item.img} alt="" width={60} height={60} className="w-full h-full object-contain" unoptimized />
+                      <Image src={thumbUrl(item.filename, item.img)} alt="" width={60} height={60} className="w-full h-full object-contain" unoptimized />
                     </div>
                     <div className="flex-1 min-w-0 pr-6 flex flex-col gap-0.5">
                       <span className="font-bold text-navy truncate">{item.displayName}</span>

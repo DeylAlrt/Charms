@@ -17,6 +17,9 @@ export type Charm = {
   displayName?: string;
   catalogItem?: boolean;
   isPlaceholder?: boolean;
+  /** Twin chain halves: both halves share a pairId; half 0 is the photo's left link, half 1 its right. */
+  pairId?: string;
+  half?: 0 | 1;
 };
 
 /** Price in AED, taken from the main site's catalogue (see charmCatalogue.ts). */

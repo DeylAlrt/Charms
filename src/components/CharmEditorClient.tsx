@@ -31,6 +31,9 @@ export default function CharmEditorClient({ charmFiles }: Props) {
     if (selectedIndex !== null && selectedIndex >= bracelet.maxSlots) setSelectedIndex(null);
   }, [selectedIndex, bracelet.maxSlots]);
 
+  // Charms in the cart: every real charm, a twin chain counted once (it is sold as a pair)
+  const cartCount = bracelet.bracelet.filter(c => c && !c.isPlaceholder && c.half !== 1).length;
+
   const handleAddCharm = (charm: Charm) => {
     if (selectedIndex !== null) {
       bracelet.replaceCharmAt(selectedIndex, charm);
@@ -45,7 +48,7 @@ export default function CharmEditorClient({ charmFiles }: Props) {
       className="h-screen bg-gradient-to-br from-sky-tint-light via-white to-white flex flex-col overflow-hidden select-none touch-none"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <SiteHeader />
+      <SiteHeader cartCount={cartCount} onOpenCart={checkout.openCart} />
 
       <div className="w-full flex flex-col flex-1 overflow-hidden px-4 sm:px-6 md:px-40 lg:px-30 xl:px-24 pb-4">
         <BraceletStrip
@@ -57,10 +60,10 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           onSizeChange={bracelet.setSize}
           selectedBaseColor={bracelet.selectedBaseColor}
           onBaseColorChange={bracelet.setSelectedBaseColor}
-          onOpenCart={checkout.openCart}
           onClear={() => { bracelet.clear(); setSelectedIndex(null); }}
           onMoveCharm={bracelet.moveCharm}
           onRemoveCharmAt={bracelet.removeCharmAt}
+          notice={bracelet.notice}
           selectedIndex={selectedIndex}
           onSelectIndex={setSelectedIndex}
         />

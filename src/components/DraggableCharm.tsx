@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { isCharmSoldOut, type Charm } from './charmEditorUtils';
+import { thumbUrl } from './charmEditor/stripImages';
 
 type DraggableCharmProps = {
   charm: Charm;
@@ -15,6 +16,7 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
   const isSoldOut = soldOut ?? isCharmSoldOut(charm.filename);
   // Which picture has finished loading, so a swapped-in charm shimmers again until it arrives
   const [loadedImg, setLoadedImg] = useState<string | null>(null);
+  const src = thumbUrl(charm.filename, charm.img);
 
   return (
     <button
@@ -34,15 +36,17 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
         `}
       >
         <Image
-          src={charm.img}
+          src={src}
           alt={charm.filename}
           width={120}
           height={120}
-          className={`w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain select-none ${loadedImg === charm.img ? '' : 'sk'}`}
+          className={`w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain select-none ${loadedImg === src ? '' : 'sk'}`}
           unoptimized
           draggable={false}
-          onLoad={() => setLoadedImg(charm.img)}
-          onError={() => setLoadedImg(charm.img)}
+          onLoad={() => setLoadedImg(src)}
+          onError={() => setLoadedImg(src)}
+          // A picture that finished loading before the page was ready never fires onLoad
+          ref={(el) => { if (el?.complete && loadedImg !== src) setLoadedImg(src); }}
           style={{
             WebkitTouchCallout: 'none',
             WebkitUserSelect: 'none',

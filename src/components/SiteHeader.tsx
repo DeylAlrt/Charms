@@ -23,7 +23,16 @@ const LINKS = [
 // Sidebar only (the site shows this one in its mobile menu, not the top bar)
 const COLLECTION = { label: 'Charm Collection', href: `${SITE}/index.html#to-collections`, icon: ICON('star--v1') };
 
-export default function SiteHeader() {
+// Same bag icon as the site's cart button (#cartBtn)
+const BAG_ICON = 'https://img.icons8.com/?size=100&id=22167&format=png&color=FFFFFF';
+
+type SiteHeaderProps = {
+  /** Charms in the cart, shown on the bag's badge (hidden at 0). */
+  cartCount: number;
+  onOpenCart: () => void;
+};
+
+export default function SiteHeader({ cartCount, onOpenCart }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
 
   // Close with Escape, like the site
@@ -52,19 +61,37 @@ export default function SiteHeader() {
           ))}
         </nav>
 
-        {/* Phones: hamburger */}
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-          aria-expanded={open}
-          aria-controls="site-sidebar"
-          className="md:hidden flex flex-col justify-center items-center gap-[5px] w-11 h-11 rounded-full transition-colors duration-200 hover:bg-[rgba(255,158,198,0.18)]"
-        >
-          <span className="block w-7 h-[3px] rounded-full bg-white" />
-          <span className="block w-7 h-[3px] rounded-full bg-white" />
-          <span className="block w-7 h-[3px] rounded-full bg-white" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Cart: the site's bag icon with a pink count badge (Css_Folder/cart.css .cart-badge there) */}
+          <button
+            type="button"
+            onClick={onOpenCart}
+            aria-label={cartCount > 0 ? `Shopping cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Shopping cart'}
+            className="relative flex items-center justify-center p-2 transition-transform duration-200 hover:scale-110 focus-visible:scale-110"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={BAG_ICON} alt="" className="w-7 h-7 md:w-[35px] md:h-[35px]" draggable={false} />
+            {cartCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#ff9ec6] text-[#1a2a44] text-[0.65rem] font-bold leading-none flex items-center justify-center pointer-events-none">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
+          </button>
+
+          {/* Phones: hamburger */}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={open}
+            aria-controls="site-sidebar"
+            className="md:hidden flex flex-col justify-center items-center gap-[5px] w-11 h-11 rounded-full transition-colors duration-200 hover:bg-[rgba(255,158,198,0.18)]"
+          >
+            <span className="block w-7 h-[3px] rounded-full bg-white" />
+            <span className="block w-7 h-[3px] rounded-full bg-white" />
+            <span className="block w-7 h-[3px] rounded-full bg-white" />
+          </button>
+        </div>
       </header>
 
       {/* Dimmed background behind the open menu */}

@@ -2546,6 +2546,40 @@
    "lh": 175
   }
  },
+ "watches": {
+  "Watches/Heart Watch.png": {
+   "w": 1200,
+   "h": 637,
+   "linkHeight": 201,
+   "linkMiddle": 293,
+   "faceLeft": 247,
+   "faceRight": 984
+  },
+  "Watches/Oval Gold Watch.png": {
+   "w": 1200,
+   "h": 587,
+   "linkHeight": 207,
+   "linkMiddle": 294,
+   "faceLeft": 242,
+   "faceRight": 989
+  },
+  "Watches/Rose Gold Digital Watch.png": {
+   "w": 1200,
+   "h": 759,
+   "linkHeight": 187,
+   "linkMiddle": 362,
+   "faceLeft": 227,
+   "faceRight": 1001
+  },
+  "Watches/White Square Watch.png": {
+   "w": 1200,
+   "h": 540,
+   "linkHeight": 172,
+   "linkMiddle": 240,
+   "faceLeft": 213,
+   "faceRight": 1013
+  }
+ },
  "thumbs": [
   "Animal Links/Animal_Premium_Links (1).png",
   "Animal Links/Animal_Premium_Links (11).png",
@@ -2885,6 +2919,10 @@
   "Sport Links/Sports_Premium_Charms (6).png",
   "Sport Links/Sports_Premium_Charms (7).png",
   "Sport Links/Sports_Premium_Charms (8).png",
-  "Sport Links/Sports_Premium_Charms (9).png"
+  "Sport Links/Sports_Premium_Charms (9).png",
+  "Watches/Heart Watch.png",
+  "Watches/Oval Gold Watch.png",
+  "Watches/Rose Gold Digital Watch.png",
+  "Watches/White Square Watch.png"
  ]
 }

@@ -163,3 +163,15 @@ body {
   from { scale: 0.4; opacity: 0; }
   to { scale: 1; opacity: 1; }
 }
+
+
+
+/* Size / colour menus (PickerMenu): a quick drop-in when they open */
+.picker-pop {
+  animation: picker-pop 0.16s ease-out;
+}
+
+@keyframes picker-pop {
+  from { opacity: 0; scale: 0.96; translate: 0 -4px; }
+  to { opacity: 1; scale: 1; translate: 0 0; }
+}

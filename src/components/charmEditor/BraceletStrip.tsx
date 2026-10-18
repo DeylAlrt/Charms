@@ -2,19 +2,47 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { StripCharmPicture, TwinChainLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry } from './StripLinks';
+import { StripCharmPicture, TwinChainLayer, WatchLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry, watchCoveredSpots, watchOverhang } from './StripLinks';
+import { WATCHES, WATCH_LINKS, attachedLinkFile, freeSpots, getWatch, isWatchPart, watchSpots } from './watches';
 import { partnerOf } from './twinChains';
-import { baseColorOptions, type BaseColor, type Charm } from '../charmEditorUtils';
+import { baseColorOptions, charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
 import { useBraceletScrollbar } from './useBraceletScrollbar';
 import FullDesignModal from './FullDesignModal';
-import type { BRACELET_SIZES } from './useBracelet';
+import { BRACELET_SIZES, BRACELET_SIZE_INFO } from './useBracelet';
+import PickerMenu from './PickerMenu';
+import { thumbUrl } from './stripImages';
 
 type BraceletSize = keyof typeof BRACELET_SIZES;
+
+/** A small picture of the plain link in this colour, for the colour menu. */
+function ColorSwatch({ color }: { color: BaseColor }) {
+  const file = plainCharmFile(color);
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={thumbUrl(file, charmImageUrl(file))} alt="" draggable={false} className="w-full h-full object-contain scale-110" />;
+}
+
+
+const NO_WATCH = 'none';
+
+/** A simple watch outline, for "No watch". */
+function WatchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4 text-navy" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="5.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 9.5V12l1.5 1.5M9 6.5l.7-3h4.6l.7 3M9 17.5l.7 3h4.6l.7-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 type BraceletStripProps = {
   bracelet: Charm[];
   maxSlots: number;
   filled: number;
+  /** Spots for charms (the watch's spots don't count). */
+  charmSpots: number;
+  /** The watch in the middle (its photo file), or null. */
+  watch: string | null;
+  onWatchChange: (file: string | null) => void;
   subtotal: number;
   size: BraceletSize;
   onSizeChange: (size: BraceletSize) => void;
@@ -42,7 +70,11 @@ const getBlankDragImage = (): HTMLImageElement => {
   return blankDragImage;
 };
 
-/** Bounces its charm in when it first appears (globals.css .charm-pop-in). */
+/**
+ * Bounces its charm in when it first appears (globals.css .charm-pop-in) —
+ * straight away; a picture still downloading shows its thumbnail meanwhile
+ * (see StripCharmPicture), so the bounce never plays on an empty spot.
+ */
 function PopIn({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
   const [pop] = useState(enabled); // decided once, so existing charms never bounce again
   return <span className={`absolute inset-0 block ${pop ? "charm-pop-in" : ""}`}>{children}</span>;
@@ -55,7 +87,7 @@ function PopIn({ enabled, children }: { enabled: boolean; children: React.ReactN
  *    gap where it will land, and it drops into that gap.
  */
 export default function BraceletStrip({
-  bracelet, maxSlots, filled, subtotal,
+  bracelet, maxSlots, filled, charmSpots, watch, onWatchChange, subtotal,
   size, onSizeChange, selectedBaseColor, onBaseColorChange,
   onClear,
   onMoveCharm, onRemoveCharmAt, notice,
@@ -117,15 +149,27 @@ export default function BraceletStrip({
     const visible = strip.getBoundingClientRect();
     const clampedX = Math.max(visible.left, Math.min(visible.right - 1, clientX));
     const x = clampedX - grid.getBoundingClientRect().left;
-    return Math.max(0, Math.min(maxSlots - 1, Math.floor(x / slotPitch)));
+    const spot = Math.max(0, Math.min(maxSlots - 1, Math.floor(x / slotPitch)));
+    // Over the watch: land just beside it, on whichever side the pointer is
+    if (isWatchPart(bracelet[spot])) {
+      const { start, end } = watchSpots(maxSlots);
+      return x < ((start + end + 1) / 2) * slotPitch ? Math.max(0, start - 1) : Math.min(maxSlots - 1, end + 1);
+    }
+    return spot;
   };
 
-  /** How many spots the charm in spot `index` slides while dragging. */
+  /** How many spots the charm in spot `index` slides while dragging. Charms
+   *  move along the free spots only, jumping over the watch, which stays put. */
   const shiftFor = (index: number) => {
     if (dragFrom === null || dragTo === null || dragFrom === dragTo) return 0;
+    if (isWatchPart(bracelet[index])) return 0;
     if (index === dragFrom) return dragTo - dragFrom;
-    if (dragFrom < dragTo && index > dragFrom && index <= dragTo) return -1;
-    if (dragTo < dragFrom && index >= dragTo && index < dragFrom) return 1;
+    const free = freeSpots(bracelet.slice(0, maxSlots));
+    const p = free.indexOf(index);
+    const from = free.indexOf(dragFrom);
+    const to = free.indexOf(dragTo);
+    if (from < to && p > from && p <= to) return free[p - 1] - index;
+    if (to < from && p >= to && p < from) return free[p + 1] - index;
     return 0;
   };
 
@@ -164,9 +208,13 @@ export default function BraceletStrip({
   // A twin chain is picked as a pair: its other half is highlighted too
   const selectedPartner = selectedIndex !== null ? partnerOf(bracelet, selectedIndex) : -1;
 
-  // Room under the spots for dangles and twin chains, and where to draw their chains
-  const hang = hangRoom(bracelet.slice(0, maxSlots));
-  const geometry = useSpotGeometry(gridRef, [maxSlots, hang]);
+  // Room under the spots for dangles, twin chains and the watch face (and
+  // above them for the watch face), and where to draw chains and the watch
+  const overhang = watchOverhang(bracelet.slice(0, maxSlots));
+  const hang = Math.max(hangRoom(bracelet.slice(0, maxSlots)), overhang.below);
+  const geometry = useSpotGeometry(gridRef, [maxSlots, hang, overhang.above]);
+  const [watchMenuOpen, setWatchMenuOpen] = useState(false);
+  const watchCovered = watchCoveredSpots(bracelet.slice(0, maxSlots));
   const positionOf = (i: number) => i + shiftFor(i);
   const flipped = mirroredSpots(bracelet.slice(0, maxSlots), positionOf);
   const meets = meetingSides(bracelet.slice(0, maxSlots));
@@ -174,24 +222,87 @@ export default function BraceletStrip({
   return (
     <div className="bg-white rounded-lg shadow-md m-1 mb-0 p-2 flex-shrink-0">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center mb-2 gap-2">
-        <div className="flex items-center gap-3">
-          <p className="text-sm font-bold text-navy">Charms: {filled}/{maxSlots}</p>
-          <select value={size} onChange={(e) => onSizeChange(e.target.value as BraceletSize)} className="text-xs px-2 py-1 border border-sky-tint rounded-md bg-white text-navy cursor-pointer transition-colors hover:border-accent-blue">
-            <option value="small">Small (16)</option>
-            <option value="medium">Medium (18)</option>
-            <option value="large">Large (20)</option>
-            <option value="xl">XL (22)</option>
-          </select>
-          <select value={selectedBaseColor} onChange={(e) => onBaseColorChange(e.target.value as BaseColor)} className="text-xs px-2 py-1 border border-sky-tint rounded-md bg-white text-navy capitalize cursor-pointer transition-colors hover:border-accent-blue">
-            {baseColorOptions.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-bold text-navy whitespace-nowrap">Charms: {filled}/{charmSpots}</p>
+          <PickerMenu
+            label="Bracelet size"
+            value={size}
+            onChange={onSizeChange}
+            options={(Object.keys(BRACELET_SIZES) as BraceletSize[]).map(key => ({
+              value: key,
+              title: BRACELET_SIZE_INFO[key].label,
+              detail: `${BRACELET_SIZES[key]} links · wrist ${BRACELET_SIZE_INFO[key].wrist}`,
+              badge: BRACELET_SIZE_INFO[key].note,
+            }))}
+            footer={
+              <a href="https://navilleracharms.vercel.app/size-guide.html" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent-blue hover:underline">
+                Not sure? See the size guide →
+              </a>
+            }
+          >
+            <span className="whitespace-nowrap pl-2">
+              {BRACELET_SIZE_INFO[size].label}
+              <span className="font-normal text-muted"> · {BRACELET_SIZE_INFO[size].wrist}</span>
+            </span>
+          </PickerMenu>
+          <PickerMenu
+            label="Bracelet colour"
+            align="right"
+            value={selectedBaseColor}
+            onChange={onBaseColorChange}
+            options={baseColorOptions.map(color => ({ value: color, title: color, icon: <ColorSwatch color={color} /> }))}
+            footer={<span className="text-muted">Any spot you don&apos;t fill is a plain link in this colour.</span>}
+          >
+            <span className="w-6 h-6 rounded-full bg-sky-tint-light flex items-center justify-center overflow-hidden"><ColorSwatch color={selectedBaseColor} /></span>
+            {/* Phones: just the picture, so the size and colour fit on one line */}
+            <span className="hidden sm:inline">{selectedBaseColor}</span>
+          </PickerMenu>
+          <PickerMenu
+            label="Watch"
+            align="right"
+            value={watch ?? NO_WATCH}
+            onChange={(value) => onWatchChange(value === NO_WATCH ? null : value)}
+            open={watchMenuOpen}
+            onOpenChange={setWatchMenuOpen}
+            options={[
+              { value: NO_WATCH, title: 'No watch', detail: 'A bracelet of charm links', icon: <WatchIcon /> },
+              ...WATCHES.map(w => ({
+                value: w.file,
+                title: w.name,
+                detail: w.soldOut ? 'Sold out' : `${w.price.toFixed(2)} AED · in the middle, takes ${WATCH_LINKS} links`,
+                disabled: !!w.soldOut,
+                // eslint-disable-next-line @next/next/no-img-element
+                icon: <img src={thumbUrl(w.file, charmImageUrl(w.file))} alt="" draggable={false} className="w-full h-full object-contain" />,
+              })),
+            ]}
+          >
+            <span className="w-6 h-6 rounded-full bg-sky-tint-light flex items-center justify-center overflow-hidden">
+              {watch
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={thumbUrl(watch, charmImageUrl(watch))} alt="" draggable={false} className="w-full h-full object-contain" />
+                : <WatchIcon />}
+            </span>
+            <span className="hidden sm:inline whitespace-nowrap">{watch ? getWatch(watch)?.name : 'No watch'}</span>
+          </PickerMenu>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-sm md:text-lg font-bold text-accent-blue">
             Total: {subtotal.toFixed(2)} AED
           </div>
-          <button onClick={() => setShowFullDesign(true)} className="lift border border-navy text-navy px-3 py-1 rounded-full text-xs hover:bg-sky-tint">View Full Design</button>
-          <button onClick={onClear} className="lift bg-danger text-white px-3 py-1 rounded-full text-xs hover:opacity-90">Clear</button>
+          {/* Same as the main site's cart buttons: flat navy main button (pastel blue on
+              hover, .cart-btn--primary) and a white secondary one (.cart-btn--secondary) */}
+          <button
+            onClick={() => setShowFullDesign(true)}
+            className="lift px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-navy transition-[background-color,color,box-shadow] duration-300 hover:bg-[#a7c7e7] hover:text-navy hover:shadow-[0_6px_16px_rgba(167,199,231,0.45)]"
+          >
+            View Full Design
+          </button>
+          <button
+            onClick={onClear}
+            className="lift px-4 py-1.5 rounded-full text-xs font-semibold text-navy bg-white border border-[#a7c7e7] transition-colors hover:bg-[#f0f6fc]"
+          >
+            Clear
+          </button>
         </div>
       </div>
 
@@ -226,23 +337,36 @@ export default function BraceletStrip({
         <div
           ref={gridRef}
           className="relative grid gap-1 min-w-max"
-          style={{ gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`, alignItems: 'start', ...spotVar(geometry) }}
+          style={{
+            gridTemplateColumns: `repeat(${maxSlots}, minmax(60px, 1fr))`,
+            alignItems: 'start',
+            // Room above the links for a watch face
+            paddingTop: `calc(var(--spot, 60px) * ${overhang.above})`,
+            ...spotVar(geometry),
+          }}
         >
           {Array.from({ length: maxSlots }, (_, i) => {
             const charm = bracelet[i];
             const isReal = !!charm && !charm.isPlaceholder;
+            // The watch's spots: WatchLayer draws the watch; plain links fill any space it doesn't cover.
+            const isWatch = isWatchPart(charm);
+            const attached = isWatch && !watchCovered.has(i) ? attachedLinkFile(charm.filename) : null;
             const isDragged = dragFrom === i;
             const isPicked = (selectedIndex === i || selectedPartner === i) && dragFrom === null;
             return (
               // Bottom padding (a % of the spot's width) leaves room for anything hanging below
               <div key={i} className="p-0 min-w-[60px]" style={{ paddingBottom: `${hang * 100}%` }}>
                 <div
-                  className={`w-full aspect-square bg-white/90 rounded-sm shadow-sm border-2 flex items-center justify-center relative transition-colors ${
+                  className={`w-full aspect-square rounded-sm border-2 flex items-center justify-center relative transition-colors ${isWatch && !attached ? '' : 'bg-white/90 shadow-sm'} ${
                     isPicked ? 'border-accent-blue' : 'border-transparent'
                   }`}
                   data-slot-index={i}
+                  data-spot=""
                 >
-                  {charm && (
+                  {attached && (
+                    <StripCharmPicture charm={{ id: `attached-${i}`, filename: attached, img: charmImageUrl(attached) }} />
+                  )}
+                  {charm && !isWatch && (
                     <>
                       {selectedIndex === i && isReal && dragFrom === null && (
                         <button
@@ -324,6 +448,7 @@ export default function BraceletStrip({
             );
           })}
           <TwinChainLayer bracelet={bracelet.slice(0, maxSlots)} geometry={geometry} positionOf={positionOf} />
+          <WatchLayer bracelet={bracelet.slice(0, maxSlots)} geometry={geometry} onTap={() => { onSelectIndex(null); setWatchMenuOpen(true); }} />
         </div>
       </div>
 
@@ -373,6 +498,7 @@ export default function BraceletStrip({
         bracelet={bracelet}
         maxSlots={maxSlots}
         filled={filled}
+        charmSpots={charmSpots}
       />
     </div>
   );

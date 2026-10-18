@@ -72,7 +72,8 @@ function groupCartItems(bracelet: Charm[]) {
   const cartItems: Record<string, { item: Charm; count: number }> = {};
   bracelet.forEach(item => {
     // A twin chain is one item in the cart (sold as a pair), counted on its first half
-    if (!item || item.half === 1) return;
+    // A watch is one item too (it covers 6 spots), counted on its first part
+    if (!item || item.half === 1 || (item.watchPart ?? 0) > 0) return;
     const key = item.filename;
     if (cartItems[key]) {
       cartItems[key].count++;
@@ -138,6 +139,10 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                     <div className="flex-1 min-w-0 pr-6 flex flex-col gap-0.5">
                       <span className="font-bold text-navy truncate">{item.displayName}</span>
                       {item.category && <span className="text-sm text-muted truncate">{item.category}</span>}
+                      {item.watchPart !== undefined ? (
+                        // Only ever one watch, so no quantity buttons (× above takes it off)
+                        <span className="text-sm text-muted mt-1.5">In the middle of your bracelet</span>
+                      ) : (
                       <div className="flex items-center gap-2.5 mt-1.5">
                         <span className="text-sm text-muted">Qty:</span>
                         <button
@@ -154,6 +159,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                           +
                         </button>
                       </div>
+                      )}
                       <span className="mt-1.5 font-bold text-navy">{(getPrice(item.filename) * count).toFixed(2)} AED</span>
                     </div>
                   </div>

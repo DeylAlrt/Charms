@@ -1,13 +1,3 @@
-/**
- * Finds the link (the flat rectangular part every charm shares) in a charm
- * photo, so all links can be drawn at the same size on the bracelet.
- *
- * Walks down the picture looking for the first band of rows whose opaque
- * width stays steady and whose shape is link-like (a bit wider than tall).
- * Dangles and chains below it are narrower or change width row to row, and
- * small bits above it (a star tip) are too narrow to count.
- */
-
 const ALPHA_MIN = 128;
 
 /** Opaque left/right edge of every row within columns [x0, x1). */

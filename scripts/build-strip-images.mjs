@@ -132,7 +132,8 @@ for (const folder of fs.readdirSync(SRC).sort()) {
     const thumbFile = path.join(THUMBS, folder, name.replace(/\.png$/i, '.webp'));
     fs.mkdirSync(path.dirname(thumbFile), { recursive: true });
     await sharp(file)
-      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, withoutEnlargement: true })
+      // Tiny originals are scaled up to fill the tile (as the full photo was shown before)
+      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .webp({ quality: 80, alphaQuality: 90 })
       .toFile(thumbFile);
     thumbs.push(key);
@@ -188,7 +189,75 @@ for (const folder of fs.readdirSync(SRC).sort()) {
   }
 }
 
-fs.writeFileSync(MANIFEST, JSON.stringify({ linkWidth: LINK_W, images: manifest, thumbs }, null, 1) + '\n');
+// Watches: the photos are upright (face in the middle, an attached link above
+// and below), so they're trimmed and turned on their side to lie along the
+// bracelet. The builder stretches each one across the 6 link spaces a watch
+// takes, so only its size (for the height) is recorded.
+const WATCH_FOLDER = 'Watches';
+const WATCH_LENGTH = 1200; // pixels along the bracelet
+const watches = {};
+for (const name of fs.readdirSync(path.join(SRC, WATCH_FOLDER)).sort()) {
+  if (!/\.png$/i.test(name)) continue;
+  const key = `${WATCH_FOLDER}/${name}`;
+  const file = path.join(SRC, WATCH_FOLDER, name);
+  const turned = await sharp(file).trim({ threshold: 10 }).rotate(90).png().toBuffer();
+  // Cut off the links at both ends of the photo, keeping just the watch face
+  // (with its lugs): the builder draws real links under it instead. Columns
+  // through a link are about a link tall; the face's columns are much taller.
+  const { data: px, info } = await sharp(turned).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const columnHeight = (x) => {
+    let top = -1, bottom = -1;
+    for (let y = 0; y < info.height; y++) {
+      if (px[(y * info.width + x) * info.channels + 3] > 128) { if (top < 0) top = y; bottom = y; }
+    }
+    return top < 0 ? 0 : bottom - top + 1;
+  };
+  const heights = Array.from({ length: info.width }, (_, x) => columnHeight(x));
+  const edge = heights.slice(0, Math.round(info.width * 0.06)).filter(Boolean).sort((a, b) => a - b);
+  const linkHeight = edge[Math.floor(edge.length / 2)] || 0;
+  let faceLeft = heights.findIndex(h => h > linkHeight * 1.35);
+  let faceRight = info.width - 1 - [...heights].reverse().findIndex(h => h > linkHeight * 1.35);
+  if (faceLeft < 0 || faceRight <= faceLeft) { faceLeft = 0; faceRight = info.width - 1; }
+  // Widen to the whole face: a rounded face narrows towards its sides, so keep
+  // going outwards while the columns are still taller than the watch's own links
+  while (faceLeft > 0 && heights[faceLeft - 1] > linkHeight * 1.08) faceLeft--;
+  while (faceRight < info.width - 1 && heights[faceRight + 1] > linkHeight * 1.08) faceRight++;
+  // Where the watch's own links sit vertically (middle of the end columns)
+  const edgeMiddle = (x) => {
+    let top = -1, bottom = -1;
+    for (let y = 0; y < info.height; y++) {
+      if (px[(y * info.width + x) * info.channels + 3] > 128) { if (top < 0) top = y; bottom = y; }
+    }
+    return (top + bottom) / 2;
+  };
+  const sample = [0.02, 0.04, 0.96, 0.98].map(f => edgeMiddle(Math.round(info.width * f)));
+  const linkMiddle = sample.reduce((a, b) => a + b, 0) / sample.length;
+
+  // The whole photo, turned, with where its links and face are recorded (scaled to WATCH_LENGTH)
+  const scale = WATCH_LENGTH / info.width;
+  const h = Math.round(info.height * scale);
+  const out = path.join(OUT, WATCH_FOLDER, name.replace(/\.png$/i, '.webp'));
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  await sharp(turned).resize(WATCH_LENGTH, h).webp({ quality: 85, alphaQuality: 90 }).toFile(out);
+  watches[key] = {
+    w: WATCH_LENGTH,
+    h,
+    linkHeight: Math.round(linkHeight * scale), // height of the watch's own links
+    linkMiddle: Math.round(linkMiddle * scale), // their vertical middle
+    faceLeft: Math.round(faceLeft * scale),     // where the face (and lugs) starts and ends
+    faceRight: Math.round(faceRight * scale),
+  };
+
+  // Thumbnail for the watch list (upright, like the photo)
+  const thumbFile = path.join(THUMBS, WATCH_FOLDER, name.replace(/\.png$/i, '.webp'));
+  fs.mkdirSync(path.dirname(thumbFile), { recursive: true });
+  await sharp(file).trim({ threshold: 10 })
+    .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .webp({ quality: 80, alphaQuality: 90 }).toFile(thumbFile);
+  thumbs.push(key);
+}
+
+fs.writeFileSync(MANIFEST, JSON.stringify({ linkWidth: LINK_W, images: manifest, watches, thumbs }, null, 1) + '\n');
 console.log(`Made ${Object.keys(manifest).length} bracelet pictures → public/charms-strip/ and ${thumbs.length} thumbnails → public/charms-thumb/`);
 if (missed.length) {
   console.log(`\nCouldn't find the link in ${missed.length} picture(s) — they'll show the old way:`);

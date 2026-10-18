@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import emailjs from '@emailjs/browser';
 import { PROMO_CODES } from '@/lib/orderPricing';
 import { charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
+import { WATCH_LINKS, watchOn } from './watches';
 import {
   DELIVERY_DATE_TEXT, DELIVERY_OPTIONS, describeDelivery, getDeliveryOption, paymentLabel,
   type DeliveryMethod, type PaymentMethod,
@@ -181,6 +182,10 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const discount = subtotal * (appliedPromo?.percent ?? 0);
   const subtotalAfterDiscount = subtotal - discount;
 
+  // "20 charms", or with a watch: "20 links incl. Heart Watch (takes 6)"
+  const watch = watchOn(bracelet);
+  const sizeText = watch ? `${maxSlots} links incl. ${watch.displayName} (takes ${WATCH_LINKS})` : `${maxSlots} charms`;
+
   /** Builds the per-slot image/name fields EmailJS' order template expects. */
   const buildCharmEmailFields = (baseUrl: string) => {
     const fields: Record<string, string> = {};
@@ -193,7 +198,9 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       const imageUrl = isEmpty ? plainCharmUrl : baseUrl + item.img;
       const charmName = isEmpty
         ? (i < maxSlots ? `${selectedBaseColor} Plain` : 'Empty')
-        : item.pairId ? `${orderName(item)} — twin chain, half ${(item.half ?? 0) + 1} of 2` : orderName(item);
+        : item.pairId ? `${orderName(item)} — twin chain, half ${(item.half ?? 0) + 1} of 2`
+        : item.watchPart !== undefined ? `${item.displayName} — watch, part ${item.watchPart + 1} of ${WATCH_LINKS}`
+        : orderName(item);
 
       fields[`charm_${i + 1}_url`] = imageUrl;
       fields[`charm_${i + 1}_name`] = charmName;
@@ -243,7 +250,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     const deliveryText = describeDelivery(deliveryOption, address);
     const total = subtotalAfterDiscount + deliveryFee;
     const charmsList = bracelet
-      .filter(item => item && !item.isPlaceholder && item.half !== 1) // a twin chain is listed once
+      .filter(item => item && !item.isPlaceholder && item.half !== 1 && !(item.watchPart ?? 0)) // a twin chain / watch is listed once
       .map(orderName)
       .join(', ');
     const baseUrl = window.location.origin;
@@ -261,7 +268,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
             meetupPlace: deliveryText,
             deliveryDate: DELIVERY_DATE_TEXT,
             notes,
-            braceletSize: `${maxSlots} charms`,
+            braceletSize: sizeText,
             baseColor: selectedBaseColor,
             // The server recomputes the price from these — it never trusts a total from the browser
             slots: Array.from({ length: maxSlots }, (_, i) => bracelet[i]?.filename ?? plainCharmFile(selectedBaseColor)),
@@ -302,7 +309,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       payment_method: payment,
       // Payment is repeated in the notes so it shows even in a template without {{payment_method}}.
       notes: notes ? `Payment: ${payment}\n${notes}` : `Payment: ${payment}`,
-      bracelet_size: `${maxSlots} charms`,
+      bracelet_size: sizeText,
       base_color: selectedBaseColor,
       subtotal: subtotal.toFixed(2),
       promo_code: appliedPromo ? appliedPromo.code : 'None',
@@ -326,7 +333,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
             pickupTime: payment,
             meetupPlace: deliveryText,
             deliveryDate: DELIVERY_DATE_TEXT,
-            size: `${maxSlots} charms`,
+            size: sizeText,
             charms: charmsList,
             subtotal: subtotalAfterDiscount.toFixed(2),
             deliveryFee: deliveryFee.toFixed(2),

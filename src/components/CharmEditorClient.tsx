@@ -55,6 +55,9 @@ export default function CharmEditorClient({ charmFiles }: Props) {
           bracelet={bracelet.bracelet}
           maxSlots={bracelet.maxSlots}
           filled={bracelet.filled}
+          charmSpots={bracelet.charmSpots}
+          watch={bracelet.watch}
+          onWatchChange={(file) => { bracelet.setWatch(file); setSelectedIndex(null); }}
           subtotal={bracelet.subtotal}
           size={bracelet.size}
           onSizeChange={bracelet.setSize}

@@ -1,14 +1,6 @@
 import type { Charm } from '../charmEditorUtils';
 
-/**
- * Twin chain charms: two links joined by a short chain, sold as a pair.
- * On the bracelet they're two halves in two spots, with at most
- * MAX_LINKS_BETWEEN other links between them. The bracelet is a loop, so
- * the halves can also sit on either side of the clasp (first and last spots).
- * Either half can be on the left.
- */
-
-export const MAX_LINKS_BETWEEN = 2;
+export const MAX_LINKS_BETWEEN = 3;
 const MAX_DISTANCE = MAX_LINKS_BETWEEN + 1;
 
 export const isTwinChain = (filename: string) => filename.startsWith('Chain Links/');

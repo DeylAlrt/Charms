@@ -57,3 +57,16 @@ export function thumbUrl(filename: string, fallback: string): string {
   if (!thumbs.has(filename)) return fallback;
   return `/charms-thumb/${filename.replace(/\.png$/i, '.webp').split('/').map(encodeURIComponent).join('/')}`;
 }
+
+/**
+ * Starts downloading a charm's bracelet picture(s) — called the moment a
+ * finger or mouse presses a charm in the list, so the picture is usually
+ * ready by the time the tap completes and the charm pops onto the bracelet.
+ */
+export function preloadStripPicture(filename: string) {
+  const halves: (0 | 1 | undefined)[] = 'halves' in (images[filename] ?? {}) ? [0, 1] : [undefined];
+  for (const half of halves) {
+    const pic = getStripPicture(filename, half);
+    if (pic) new Image().src = pic.src;
+  }
+}

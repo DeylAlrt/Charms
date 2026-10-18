@@ -7,12 +7,14 @@ type DraggableCharmProps = {
   charm: Charm;
   compact?: boolean;
   onTap?: (charm: Charm) => void;
+  /** Called the moment the charm is pressed, before the tap completes (to start loading things early). */
+  onPress?: (charm: Charm) => void;
   interactive?: boolean;
   /** Pass explicitly once the caller knows the admin-flagged status; falls back to the filename convention if omitted. */
   soldOut?: boolean;
 };
 
-export default function DraggableCharm({ charm, compact = false, onTap, interactive = true, soldOut }: DraggableCharmProps) {
+export default function DraggableCharm({ charm, compact = false, onTap, onPress, interactive = true, soldOut }: DraggableCharmProps) {
   const isSoldOut = soldOut ?? isCharmSoldOut(charm.filename);
   // Which picture has finished loading, so a swapped-in charm shimmers again until it arrives
   const [loadedImg, setLoadedImg] = useState<string | null>(null);
@@ -21,6 +23,7 @@ export default function DraggableCharm({ charm, compact = false, onTap, interact
   return (
     <button
       type="button"
+      onPointerDown={() => interactive && !isSoldOut && onPress?.(charm)}
       onClick={() => interactive && !isSoldOut && onTap?.(charm)}
       className={`relative group ${isSoldOut ? 'cursor-not-allowed' : 'cursor-pointer'} border-0 bg-transparent p-0`}
       style={{ touchAction: 'manipulation', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}

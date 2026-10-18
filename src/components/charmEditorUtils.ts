@@ -1,11 +1,12 @@
 import { getCatalogueEntry } from "./charmCatalogue";
+import { getWatch } from "./charmEditor/watches";
 
 /**
  * Base bracelet colours customers can choose (empty spots are plain links in
  * this colour). To offer or stop offering a colour, edit this list — each one
  * needs a "Plain Links/<Colour>_Plain_Charm.png" in the catalogue.
  */
-export const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Red", "Purple", "Pink"] as const;
+export const baseColorOptions = ["Silver", "Gold", "Blue", "Black", "Red", "Purple", "Pink", "Concave"] as const;
 export type BaseColor = typeof baseColorOptions[number];
 
 export type Charm = {
@@ -20,10 +21,12 @@ export type Charm = {
   /** Twin chain halves: both halves share a pairId; half 0 is the photo's left link, half 1 its right. */
   pairId?: string;
   half?: 0 | 1;
+  /** A watch in the middle of the bracelet is stored as one part per spot it covers (0 = first). */
+  watchPart?: number;
 };
 
-/** Price in AED, taken from the main site's catalogue (see charmCatalogue.ts). */
-export const getPrice = (filename: string): number => getCatalogueEntry(filename)?.price ?? 0;
+/** Price in AED, taken from the main site's catalogue (see charmCatalogue.ts), or the watch list for a watch. */
+export const getPrice = (filename: string): number => getCatalogueEntry(filename)?.price ?? getWatch(filename)?.price ?? 0;
 
 /** Public URL for a charm image; paths contain folders and spaces, so each segment is encoded. */
 export const charmImageUrl = (filename: string): string =>

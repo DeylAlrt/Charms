@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import type { Charm } from '../charmEditorUtils';
-import { StripCharmPicture, TwinChainLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry } from './StripLinks';
+import { charmImageUrl, type Charm } from '../charmEditorUtils';
+import { attachedLinkFile, isWatchPart } from './watches';
+import { StripCharmPicture, TwinChainLayer, WatchLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry, watchCoveredSpots, watchOverhang } from './StripLinks';
 
 type FullDesignModalProps = {
   open: boolean;
@@ -10,26 +11,38 @@ type FullDesignModalProps = {
   bracelet: Charm[];
   maxSlots: number;
   filled: number;
+  /** Spots for charms (the watch's spots don't count). */
+  charmSpots: number;
 };
 
 function BraceletRow({ slots }: { slots: Charm[] }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
-  const hang = hangRoom(slots);
-  const geometry = useSpotGeometry(rowRef, [slots.length, hang]);
+  const overhang = watchOverhang(slots);
+  const hang = Math.max(hangRoom(slots), overhang.below);
+  const geometry = useSpotGeometry(rowRef, [slots.length, hang, overhang.above]);
   const flipped = mirroredSpots(slots);
   const meets = meetingSides(slots);
+  const covered = watchCoveredSpots(slots);
   return (
     <div ref={rowRef} className="relative flex justify-center items-start" style={spotVar(geometry)}>
-      {slots.map((charm, i) => (
-        <div key={i} style={{ width: `calc(100% / ${slots.length})`, maxWidth: 44 }}>
-          <div className="relative aspect-square">
-            {charm && <StripCharmPicture charm={charm} mirrored={flipped.has(i)} meet={meets.get(i)} />}
+      {slots.map((charm, i) => {
+        // The watch's spots: WatchLayer draws the watch; plain links fill any space it doesn't cover
+        const attached = isWatchPart(charm) && !covered.has(i) ? attachedLinkFile(charm.filename) : null;
+        const shown = attached ? { id: `attached-${i}`, filename: attached, img: charmImageUrl(attached) } : isWatchPart(charm) ? null : charm;
+        return (
+          <div key={i} style={{ width: `calc(100% / ${slots.length})`, maxWidth: 44 }}>
+            {/* Room above for a watch face (a % of this spot's width) */}
+            <div style={{ paddingBottom: `${overhang.above * 100}%` }} />
+            <div className="relative aspect-square" data-spot="">
+              {shown && <StripCharmPicture charm={shown} mirrored={flipped.has(i)} meet={meets.get(i)} />}
+            </div>
+            {/* Room for anything hanging below */}
+            <div style={{ paddingBottom: `${hang * 100}%` }} />
           </div>
-          {/* Room for anything hanging below (a % of this spot's width) */}
-          <div style={{ paddingBottom: `${hang * 100}%` }} />
-        </div>
-      ))}
+        );
+      })}
       <TwinChainLayer bracelet={slots} geometry={geometry} />
+      <WatchLayer bracelet={slots} geometry={geometry} />
     </div>
   );
 }
@@ -38,7 +51,7 @@ function BraceletRow({ slots }: { slots: Charm[] }) {
  * Shows the whole bracelet in one row, every link side by side like the real
  * thing, so customers can see (and screenshot) their full design at once.
  */
-export default function FullDesignModal({ open, onClose, bracelet, maxSlots, filled }: FullDesignModalProps) {
+export default function FullDesignModal({ open, onClose, bracelet, maxSlots, filled, charmSpots }: FullDesignModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -90,7 +103,7 @@ export default function FullDesignModal({ open, onClose, bracelet, maxSlots, fil
           </div>
 
           <p className="text-center text-xs sm:text-sm font-semibold text-navy mt-3">
-            {filled} of {maxSlots} charms added
+            {filled} of {charmSpots} charms added
           </p>
 
           <div className="mt-4 bg-cream/60 rounded-xl px-4 py-3 text-xs sm:text-sm text-navy leading-relaxed">

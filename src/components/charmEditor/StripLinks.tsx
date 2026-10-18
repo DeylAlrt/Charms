@@ -2,8 +2,9 @@
 
 import { useLayoutEffect, useState } from 'react';
 import type { Charm } from '../charmEditorUtils';
-import { LINK_W, getStripPicture } from './stripImages';
+import { LINK_W, getStripPicture, thumbUrl } from './stripImages';
 import { MAX_LINKS_BETWEEN, loopDistance, pairsOn, runsDirectly } from './twinChains';
+import { WATCH_FACE_LINKS, WATCH_LINKS, watchPicture } from './watches';
 
 const LINK_FILL = 0.935;
 const LINK_TOP = 0.08;
@@ -75,6 +76,9 @@ export function StripCharmPicture({ charm, mirrored = false, meet, gapPx = 0 }: 
 }) {
   const pic = getStripPicture(charm.filename, charm.half);
   const alt = charm.isPlaceholder ? 'Plain link' : (charm.displayName || charm.filename);
+  // Until the bracelet picture has downloaded, the charm's thumbnail (already
+  // loaded for the charm list) stands in, so a new charm pops in instantly
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
 
   if (!pic) {
     return (
@@ -105,13 +109,32 @@ export function StripCharmPicture({ charm, mirrored = false, meet, gapPx = 0 }: 
       : `calc(${pct(-50 - edgeFromCenter)} - ${gapPx}px)`;
   }
 
+  const loaded = loadedSrc === pic.src;
+  const markLoaded = () => setLoadedSrc(pic.src);
+
   return (
     <>
+      {/* Stand-in while the bracelet picture downloads (not for twin chain halves:
+          their thumbnail shows the whole pair) */}
+      {!loaded && charm.half === undefined && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={thumbUrl(charm.filename, charm.img)}
+          alt=""
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+          style={{ zIndex: LINK_Z }}
+        />
+      )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={pic.src}
         alt={alt}
         draggable={false}
+        onLoad={markLoaded}
+        onError={markLoaded}
+        // Already downloaded before the page was ready: onLoad never fires, so check here
+        ref={(el) => { if (el?.complete && !loaded) markLoaded(); }}
         className={className}
         style={{ ...box, zIndex: LINK_Z, clipPath: `inset(0 0 ${hangingPct}% 0)` }}
       />
@@ -138,25 +161,30 @@ export function StripCharmPicture({ charm, mirrored = false, meet, gapPx = 0 }: 
 export type SpotGeometry = { spotW: number; pitch: number; left: number; top: number };
 
 /**
- * Measures the spots of a row: their width, the distance between two
- * neighbouring spots, and where the first one sits — kept up to date as the
- * row resizes. `rowRef`'s first children must be the spots.
+ * Measures the spots of a row: the width of a spot's square, the distance
+ * between two neighbouring squares, and where the first square sits within
+ * the row — kept up to date as the row or its squares resize. The squares
+ * must carry `data-spot` and sit directly inside the (positioned) row's cells.
  */
 export function useSpotGeometry(rowRef: React.RefObject<HTMLElement | null>, deps: unknown[]): SpotGeometry | null {
   const [geometry, setGeometry] = useState<SpotGeometry | null>(null);
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!row) return;
+    const squares = () => row.querySelectorAll<HTMLElement>('[data-spot]');
     const measure = () => {
-      const first = row.children[0] as HTMLElement | undefined;
-      const second = row.children[1] as HTMLElement | undefined;
+      const [first, second] = squares();
       if (!first) return;
+      // offsetLeft/Top are relative to the row (the squares' nearest positioned
+      // ancestor), and unaffected by any animation transforms
       const pitch = second ? second.offsetLeft - first.offsetLeft : first.offsetWidth;
       setGeometry({ spotW: first.offsetWidth, pitch, left: first.offsetLeft, top: first.offsetTop });
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(row);
+    const first = squares()[0];
+    if (first) observer.observe(first);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -209,7 +237,7 @@ export const CHAIN_LOOK = {
   middleShift: 0.12,
   /** Nudges each end of the chain, to close a gap where it meets the photo's chain.
    *  x: positive = right, negative = left. y: positive = down, negative = up. */
-  leftEnd: { x: 0.1, y: 0 },
+  leftEnd: { x: 0.05, y: 0 },
   rightEnd: { x: 0.05, y: -0.015 },
   /** Colours for silver twin chains: the metal, its darker edge, and its shine. */
   silver: { metal: '#e4e7eb', edge: '#a9b0b9', shine: '#ffffff' },
@@ -256,12 +284,6 @@ function chainLinks(curve: Curve, linkLength: number) {
   });
 }
 
-/**
- * The chains between twin chain halves, drawn over the hanging parts and
- * under the links. `positionOf` gives where each spot's charm is currently
- * drawn (it differs while dragging). A chain stretched too far turns red;
- * halves side by side get none. Its look is set in CHAIN_LOOK above.
- */
 export function TwinChainLayer({ bracelet, geometry, positionOf = i => i }: {
   bracelet: Charm[];
   geometry: SpotGeometry | null;
@@ -335,5 +357,97 @@ export function TwinChainLayer({ bracelet, geometry, positionOf = i => i }: {
         </g>
       ))}
     </svg>
+  );
+}
+
+/** A plain link's height as a share of its width (from the plain link picture). */
+const LINK_ASPECT = 0.93;
+/** Where the middle of the link row is, as a share of a spot's width from its top. */
+const LINK_MIDDLE = LINK_TOP + (LINK_FILL * LINK_ASPECT) / 2;
+/** How far the watch face reaches over the links either side, in spot widths, so its lugs look attached. */
+const LUG_OVERLAP = 0.08;
+
+/**
+ * The watch on the bracelet: which spots it covers, its sideways photo, and
+ * the scale its face is drawn at (spot widths per photo pixel): the face, with
+ * its lugs, spans WATCH_FACE_LINKS spots exactly.
+ */
+function watchLayout(bracelet: Charm[]) {
+  const start = bracelet.findIndex(item => item?.watchPart === 0);
+  if (start < 0) return null;
+  const pic = watchPicture(bracelet[start].filename);
+  if (!pic) return null;
+  const scale = (WATCH_FACE_LINKS + 2 * LUG_OVERLAP) / (pic.faceRight - pic.faceLeft);
+  // Where the face starts, in spots (can fall part-way into a spot when WATCH_FACE_LINKS is odd)
+  const faceStart = start + (WATCH_LINKS - WATCH_FACE_LINKS) / 2;
+  return { start, faceStart, pic, scale };
+}
+
+/** How far the watch face sticks out above and below the row of links, in spot widths. */
+export function watchOverhang(bracelet: Charm[]): { above: number; below: number } {
+  const layout = watchLayout(bracelet);
+  if (!layout) return { above: 0, below: 0 };
+  const { pic, scale } = layout;
+  return {
+    above: Math.max(0, pic.linkMiddle * scale - LINK_MIDDLE),
+    below: Math.max(0, (pic.h - pic.linkMiddle) * scale - (1 - LINK_MIDDLE)),
+  };
+}
+
+/** The watch's spots completely under its face, where no plain link (or spot square) is drawn.
+ *  A spot only partly under it keeps its link, with the face's lug resting on it. */
+export function watchCoveredSpots(bracelet: Charm[]): Set<number> {
+  const layout = watchLayout(bracelet);
+  const covered = new Set<number>();
+  if (layout) {
+    for (let i = layout.start; i < layout.start + WATCH_LINKS; i++) {
+      if (i >= layout.faceStart && i + 1 <= layout.faceStart + WATCH_FACE_LINKS) covered.add(i);
+    }
+  }
+  return covered;
+}
+
+/**
+ * The watch face (the photo's own end links cut off), fitted exactly over its
+ * WATCH_FACE_LINKS spots so its lugs meet the plain links either side, and
+ * centred on the row of links. Tapping it calls `onTap`.
+ */
+export function WatchLayer({ bracelet, geometry, onTap }: {
+  bracelet: Charm[];
+  geometry: SpotGeometry | null;
+  onTap?: () => void;
+}) {
+  const layout = watchLayout(bracelet);
+  if (!layout || !geometry) return null;
+  const g = geometry;
+  const { pic, start, faceStart } = layout;
+  // From the face's first spot edge to its last (gaps between spots included), plus the lug overlap
+  const faceWidth = WATCH_FACE_LINKS * g.pitch - (g.pitch - g.spotW) + 2 * LUG_OVERLAP * g.spotW; // screen pixels
+  const px = faceWidth / (pic.faceRight - pic.faceLeft); // screen pixels per photo pixel
+  const style: React.CSSProperties = {
+    left: g.left + faceStart * g.pitch - LUG_OVERLAP * g.spotW,
+    top: g.top + g.spotW * LINK_MIDDLE - pic.linkMiddle * px,
+    width: faceWidth,
+    height: pic.h * px,
+    zIndex: LINK_Z + 1,
+  };
+  const name = bracelet[start].displayName ?? 'Watch';
+  const img = (
+    // The whole photo, shifted so only the face shows through this window
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={pic.src}
+      alt={name}
+      draggable={false}
+      className="absolute top-0 max-w-none select-none pointer-events-none"
+      style={{ left: -pic.faceLeft * px, width: pic.w * px, height: pic.h * px }}
+    />
+  );
+  return onTap ? (
+    <button type="button" onClick={onTap} aria-label={`${name} — tap to change the watch`} className="absolute p-0 border-0 bg-transparent cursor-pointer overflow-hidden" style={style}>
+      {img}
+    </button>
+  ) : (
+    <div className="absolute pointer-events-none overflow-hidden" style={style}>{img}</div>
   );
 }

@@ -29,7 +29,7 @@ export type Charm = {
 export const getPrice = (filename: string): number => getCatalogueEntry(filename)?.price ?? getWatch(filename)?.price ?? 0;
 
 /** A product photo given as a full link (e.g. ImageKit) rather than a file in public/charms. */
-export const isWebLink = (filename: string) => /^https?:///i.test(filename);
+export const isWebLink = (filename: string) => /^https?:\/\//i.test(filename);
 
 /** Public URL for a charm image; paths contain folders and spaces, so each segment is encoded. */
 export const charmImageUrl = (filename: string): string =>

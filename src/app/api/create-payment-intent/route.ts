@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
 import { createPaymentIntent } from '@/lib/ziina';
-import { checkSpam, noteSend } from '@/lib/antiSpam';
+import { checkSpam, noteSend, text } from '@/lib/antiSpam';
 import { publicOrigin } from '@/lib/siteUrls';
 import { braceletRecord, readBraceletOrder } from '@/lib/builderOrder';
-import { OutOfStockError, saveOrder } from '@/lib/orderStore';
+import { DiscountInvalidError, OutOfStockError, resolveDiscount, saveOrder } from '@/lib/orderStore';
 
 const PAYMENT = { method: 'ziina', label: 'Paid Online (Ziina)' } as const;
 
@@ -27,9 +27,18 @@ export async function POST(request: NextRequest) {
         : NextResponse.json({ success: false, error: spam.error }, { status: spam.status });
     }
 
+    // The promo code is checked with Supabase (active, not expired or used up, first order only…)
+    let discount;
+    try {
+      discount = await resolveDiscount(text(body.promoCode, 30).toUpperCase(), text(body.email, 254), text(body.phone, 30));
+    } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400 });
+      throw err;
+    }
+
     let order;
     try {
-      order = readBraceletOrder(body, publicOrigin(request));
+      order = readBraceletOrder(body, publicOrigin(request), discount);
     } catch (err) {
       return NextResponse.json({ success: false, error: (err as Error).message }, { status: 400 });
     }
@@ -47,6 +56,7 @@ export async function POST(request: NextRequest) {
     try {
       await saveOrder(record, stockLines, false);
     } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400 });
       if (err instanceof OutOfStockError) return NextResponse.json({ success: false, error: err.message }, { status: 409 });
       // Without the saved order, a payment couldn't be matched to it — so don't send the customer to pay.
       console.error('Could not save the Ziina order in Supabase:', err);

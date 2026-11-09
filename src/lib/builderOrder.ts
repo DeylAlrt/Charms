@@ -5,7 +5,7 @@ import { isTwinChain } from '@/components/charmEditor/twinChains';
 import { WATCH_LINKS, getWatch } from '@/components/charmEditor/watches';
 import { checkContactDetails, text } from './antiSpam';
 import { priceOrder, type PricedOrder } from './orderPricing';
-import type { NewOrder, StockLine } from './orderStore';
+import type { Discount, NewOrder, StockLine } from './orderStore';
 import { productIdForBuilderFile } from './products';
 
 /**
@@ -39,7 +39,7 @@ export type BraceletOrder = {
 const MAX_EMAIL_SLOTS = 22;
 
 /** Reads and checks an order from the builder's checkout. Throws an Error with a customer-readable message. */
-export function readBraceletOrder(body: Record<string, unknown>, origin: string): BraceletOrder {
+export function readBraceletOrder(body: Record<string, unknown>, origin: string, discount: Discount | null = null): BraceletOrder {
   const name = text(body.customerName, 100);
   const phone = text(body.phone, 30);
   const email = text(body.email, 254);
@@ -54,8 +54,7 @@ export function readBraceletOrder(body: Record<string, unknown>, origin: string)
   const address = text(body.address, 300);
   if (delivery.needsAddress && !address) throw new Error('Please type your home address.');
 
-  const promoCode = text(body.promoCode, 30).toUpperCase();
-  const priced = priceOrder({ slots: body.slots, deliveryOptionId: delivery.id, promoCode });
+  const priced = priceOrder({ slots: body.slots, deliveryOptionId: delivery.id, discountPercent: discount?.percent });
   const slots = body.slots as string[];
 
   const plainFile = plainCharmFile(baseColor);
@@ -121,7 +120,7 @@ export function readBraceletOrder(body: Record<string, unknown>, origin: string)
     deliveryText: describeDelivery(delivery, address),
     sizeText,
     baseColor,
-    promoCode: priced.discount > 0 ? promoCode : '',
+    promoCode: discount?.code ?? '',
     priced,
     lines,
     layout,

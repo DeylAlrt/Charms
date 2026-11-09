@@ -1,8 +1,7 @@
 import { describeDelivery, getDeliveryOption, DELIVERY_DATE_TEXT } from '@/components/charmEditor/orderOptions';
 import { checkContactDetails, text } from './antiSpam';
-import { PROMO_CODES } from './orderPricing';
 import { getSiteItem } from './siteCatalogue';
-import type { NewOrder, StockLine } from './orderStore';
+import type { Discount, NewOrder, StockLine } from './orderStore';
 import { productIdForSiteKey } from './products';
 
 /**
@@ -42,7 +41,7 @@ export type ShopOrder = {
 };
 
 /** Reads and prices the cart. Throws an Error with a customer-readable message. */
-export function readShopOrder(body: Record<string, unknown>): ShopOrder {
+export function readShopOrder(body: Record<string, unknown>, promo: Discount | null = null): ShopOrder {
   const name = text(body.name, 100);
   const phone = text(body.phone, 30);
   const email = text(body.email, 254);
@@ -67,8 +66,8 @@ export function readShopOrder(body: Record<string, unknown>): ShopOrder {
   const address = text(body.address, 300);
   if (delivery.needsAddress && !address) throw new Error('Please type your home address.');
 
-  const code = text(body.promoCode, 30).toUpperCase();
-  const percent = code ? PROMO_CODES[code] ?? 0 : 0;
+  const code = promo?.code ?? '';
+  const percent = promo?.percent ?? 0;
 
   const itemsTotal = round2(lines.reduce((sum, l) => sum + l.price * l.qty, 0));
   const discount = round2(itemsTotal * percent);

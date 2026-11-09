@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
 import { createPaymentIntent } from '@/lib/ziina';
-import { OutOfStockError, saveOrder } from '@/lib/orderStore';
-import { checkSpam, noteSend } from '@/lib/antiSpam';
+import { DiscountInvalidError, OutOfStockError, resolveDiscount, saveOrder } from '@/lib/orderStore';
+import { checkSpam, noteSend, text } from '@/lib/antiSpam';
 import { CORS_HEADERS, readShopOrder, shopRecord } from '@/lib/shopOrder';
 
 /**
@@ -44,9 +44,18 @@ export async function POST(request: NextRequest) {
     const spam = await checkSpam(request, body, 'shop-order');
     if (!spam.ok) return spam.silent ? fail('Could not start online payment.') : fail(spam.error, spam.status);
 
+    // The promo code is checked with Supabase (active, not expired or used up, first order only…)
+    let discount;
+    try {
+      discount = await resolveDiscount(text(body.promoCode, 30).toUpperCase(), text(body.email, 254), text(body.phone, 30));
+    } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400, headers });
+      throw err;
+    }
+
     let order;
     try {
-      order = readShopOrder(body);
+      order = readShopOrder(body, discount);
     } catch (err) {
       return fail((err as Error).message);
     }
@@ -63,6 +72,7 @@ export async function POST(request: NextRequest) {
     try {
       await saveOrder(record, stockLines, false);
     } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400, headers });
       if (err instanceof OutOfStockError) return fail(err.message, 409);
       // Without the saved order, a payment couldn't be matched to it — so don't send the customer to pay.
       console.error('Could not save the Ziina order in Supabase:', err);

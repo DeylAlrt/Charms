@@ -70,6 +70,7 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
     let error: { message?: string; details?: string } = {};
     try { error = JSON.parse(text); } catch {}
     if (error.message === 'OUT_OF_STOCK') throw new OutOfStockError(error.details || 'an item');
+    if (error.message === 'DISCOUNT_INVALID') throw new DiscountInvalidError(error.details || "That code isn't valid.");
     throw new Error(`Supabase ${fn} failed (${res.status}): ${text}`);
   }
   return JSON.parse(text) as T;
@@ -137,7 +138,7 @@ export async function placeOrderNow(record: NewOrder, stockLines: StockLine[]): 
   try {
     saved = await saveOrder(record, stockLines, true);
   } catch (err) {
-    if (err instanceof OutOfStockError) throw err;
+    if (err instanceof OutOfStockError || err instanceof DiscountInvalidError) throw err;
     console.error('Could not save the order in Supabase — sending the email anyway:', err);
   }
 
@@ -157,4 +158,31 @@ export async function placeOrderNow(record: NewOrder, stockLines: StockLine[]): 
     }
   }
   return { orderNumber: saved?.order_number ?? null };
+}
+
+// ---------------------------------------------------------------------------
+// Discount codes (rules in supabase/migrations/20261112000000_discount_codes.sql)
+// ---------------------------------------------------------------------------
+
+/** The promo code can't be used (unknown, expired, used up, or not the customer's first order). */
+export class DiscountInvalidError extends Error {}
+
+export type Discount = { code: string; percent: number };
+
+/**
+ * Checks a promo code (with the customer's email and WhatsApp number, for
+ * first-order-only codes). Returns null when no code was given; throws
+ * DiscountInvalidError with a message for the customer otherwise.
+ */
+export async function resolveDiscount(code: string, email?: string, phone?: string): Promise<Discount | null> {
+  if (!code) return null;
+  let verdict: { ok: boolean; code?: string; percent_off?: number | string; message?: string };
+  try {
+    verdict = await rpc('check_discount', { p_code: code, p_email: email || null, p_phone: phone || null });
+  } catch (err) {
+    console.error('Could not check the promo code:', err);
+    throw new DiscountInvalidError("We couldn't check the promo code right now — please try again in a minute, or remove it.");
+  }
+  if (!verdict.ok) throw new DiscountInvalidError(verdict.message || "That code isn't valid.");
+  return { code: verdict.code!, percent: Number(verdict.percent_off) / 100 };
 }

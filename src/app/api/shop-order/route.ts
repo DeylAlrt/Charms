@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
-import { checkSpam, noteSend } from '@/lib/antiSpam';
+import { checkSpam, noteSend, text } from '@/lib/antiSpam';
 import { CORS_HEADERS, readShopOrder, shopRecord } from '@/lib/shopOrder';
-import { OutOfStockError, placeOrderNow } from '@/lib/orderStore';
+import { DiscountInvalidError, OutOfStockError, placeOrderNow, resolveDiscount } from '@/lib/orderStore';
 
 /**
  * A MAIN SITE cart order paid by Cash on Delivery or Bank Transfer
@@ -30,9 +30,18 @@ export async function POST(request: NextRequest) {
     const label = typeof body.paymentMethod === 'string' ? PAYMENTS[body.paymentMethod] : undefined;
     if (!label) return fail('Please choose how you want to pay.');
 
+    // The promo code is checked with Supabase (active, not expired or used up, first order only…)
+    let discount;
+    try {
+      discount = await resolveDiscount(text(body.promoCode, 30).toUpperCase(), text(body.email, 254), text(body.phone, 30));
+    } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400, headers });
+      throw err;
+    }
+
     let order;
     try {
-      order = readShopOrder(body);
+      order = readShopOrder(body, discount);
     } catch (err) {
       return fail((err as Error).message);
     }
@@ -42,6 +51,7 @@ export async function POST(request: NextRequest) {
     try {
       ({ orderNumber } = await placeOrderNow(record, stockLines));
     } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400, headers });
       if (err instanceof OutOfStockError) return fail(err.message, 409);
       throw err;
     }

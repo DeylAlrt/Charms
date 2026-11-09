@@ -10,11 +10,6 @@ import { WATCH_LINKS, getWatch } from '@/components/charmEditor/watches';
  * code, so an edited request can't change what Ziina charges.
  */
 
-/** Promo codes → fraction off the charms subtotal (delivery isn't discounted). */
-export const PROMO_CODES: Record<string, number> = {
-  NEWBABE: 0.05,
-};
-
 export const BRACELET_SLOT_COUNTS = [16, 18, 20, 22];
 
 export type PricedOrder = {
@@ -32,8 +27,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * how they're made (and priced).
  * Throws an Error with a customer-readable message if anything is invalid.
  */
-export function priceOrder(params: { slots: unknown; deliveryOptionId: unknown; promoCode?: unknown }): PricedOrder {
-  const { slots, deliveryOptionId, promoCode } = params;
+/** `discountPercent`: the fraction off the charms (0.05 = 5%), from a promo code already checked with Supabase. */
+export function priceOrder(params: { slots: unknown; deliveryOptionId: unknown; discountPercent?: number }): PricedOrder {
+  const { slots, deliveryOptionId, discountPercent = 0 } = params;
 
   if (!Array.isArray(slots) || !BRACELET_SLOT_COUNTS.includes(slots.length)) {
     throw new Error('Invalid bracelet size.');
@@ -73,10 +69,7 @@ export function priceOrder(params: { slots: unknown; deliveryOptionId: unknown; 
   const delivery = typeof deliveryOptionId === 'string' ? getDeliveryOption(deliveryOptionId) : undefined;
   if (!delivery) throw new Error('Please choose a delivery option.');
 
-  const code = typeof promoCode === 'string' ? promoCode.trim().toUpperCase() : '';
-  const percent = code ? PROMO_CODES[code] ?? 0 : 0;
-
-  const discount = round2(charmsTotal * percent);
+  const discount = round2(charmsTotal * discountPercent);
   const subtotal = round2(charmsTotal - discount);
   const deliveryFee = delivery.fee;
 

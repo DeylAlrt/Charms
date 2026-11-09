@@ -89,3 +89,18 @@ promoCode, items: [{ subcollection, file, qty }], website, turnstileToken`
 - `turnstileToken` comes from the Cloudflare Turnstile widget, once its keys are set up.
 - Send orders here instead of calling EmailJS from the browser: the server sends the emails.
   (These main site changes were lost when the old folder was removed and still need redoing there.)
+- A successful order returns `orderNumber` (e.g. `1007`) — show it in the thank-you message.
+
+## Promo codes (checked by the server, from the `discount_codes` table)
+
+Codes live in Supabase (`discount_codes`: `percent_off`, `first_order_only`, `expires_at`, `max_uses`,
+`times_used`, `is_active`). The main site must **not** keep its own list of codes or its
+"already ordered on this device" lock any more:
+
+- **Apply button:** POST `https://navillera.vercel.app/api/check-promo` with `{ code, email?, phone? }`
+  → `{ success: true, code, percent }` (`percent` is a fraction: `0.05` = 5%) or
+  `{ success: false, error }` — show `error` as it is. Limited to 10 tries per 10 minutes per visitor.
+- **Placing the order:** send `promoCode` as now. The server checks it again with the customer's
+  email and WhatsApp number (first order only = no earlier order with the same email or number).
+  If it can't be used, the answer is `{ success: false, promoInvalid: true, error }`: show `error`,
+  remove the code from the cart, and let the customer press the button again to order without it.

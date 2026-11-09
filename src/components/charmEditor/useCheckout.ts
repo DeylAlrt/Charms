@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { PROMO_CODES } from '@/lib/orderPricing';
 import { plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
 import { DELIVERY_OPTIONS, getDeliveryOption, type DeliveryMethod, type PaymentMethod } from './orderOptions';
 import { TURNSTILE_SITE_KEY } from './HumanCheck';
@@ -12,27 +11,6 @@ const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
     if (typeof message === 'string') return message;
   }
   return typeof err === 'string' ? err : fallback;
-};
-
-// Same promo codes and new-customer-only restriction as the main site's
-// cart (Js_Folder/cart.js) — one-time use tracked per browser.
-const HAS_ORDERED_KEY = 'navillera-has-ordered';
-
-const hasOrderedBefore = (): boolean => {
-  try {
-    return localStorage.getItem(HAS_ORDERED_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
-
-const markAsOrdered = () => {
-  try {
-    localStorage.setItem(HAS_ORDERED_KEY, '1');
-  } catch {
-    // Storage unavailable (private browsing, etc.) — the promo lock is
-    // best-effort, so just skip it silently.
-  }
 };
 
 type CheckoutContext = {
@@ -73,7 +51,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const [promoInput, setPromoInput] = useState('');
   const [promoMessage, setPromoMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; percent: number } | null>(null);
-  const [promoLocked, setPromoLocked] = useState(false);
+  const [promoChecking, setPromoChecking] = useState(false);
 
   const [orderStatus, setOrderStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -90,10 +68,6 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const [ziinaResult, setZiinaResult] = useState<'success' | 'failed' | 'canceled' | null>(null);
   const ziinaIframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  useEffect(() => {
-    setPromoLocked(hasOrderedBefore());
-  }, []);
-
   // Back from Ziina's payment page (?ziina=success / cancel / failed): show
   // the result and tidy the address bar. The order itself is only confirmed
   // by the Ziina webhook, which re-checks the payment with Ziina, so editing
@@ -104,7 +78,6 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     if (!outcome) return;
     if (outcome === 'success') {
       setZiinaResult('success');
-      markAsOrdered();
     } else if (outcome === 'cancel') {
       setZiinaResult('canceled');
     } else if (outcome === 'failed') {
@@ -152,25 +125,41 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const goToCheckout = () => setView('form');
   const backToItems = () => setView('items');
 
-  const applyPromoCode = () => {
-    if (promoLocked) {
-      setAppliedPromo(null);
-      setPromoMessage({ text: "This code is for new customers only — looks like you've already placed an order from this device.", type: 'error' });
-      return;
-    }
+  /** Checks the code with the server (Supabase). "First order only" is checked again when the order is placed. */
+  const applyPromoCode = async () => {
     const code = promoInput.trim().toUpperCase();
     if (!code) {
       setPromoMessage({ text: 'Enter a promo code.', type: 'error' });
       return;
     }
-    const percent = PROMO_CODES[code];
-    if (percent === undefined) {
-      setAppliedPromo(null);
-      setPromoMessage({ text: "That code isn't valid.", type: 'error' });
-      return;
+    if (promoChecking) return;
+    setPromoChecking(true);
+    try {
+      const res = await fetch('/api/check-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, email, phone: phoneNumber }),
+      });
+      const data = await res.json().catch(() => ({ success: false }));
+      if (!data.success) {
+        setAppliedPromo(null);
+        setPromoMessage({ text: data.error || "That code isn't valid.", type: 'error' });
+        return;
+      }
+      setAppliedPromo({ code: data.code, percent: data.percent });
+      setPromoMessage({ text: `"${data.code}" applied — ${Math.round(data.percent * 100)}% off!`, type: 'success' });
+    } catch {
+      setPromoMessage({ text: "We couldn't check the code right now — please try again.", type: 'error' });
+    } finally {
+      setPromoChecking(false);
     }
-    setAppliedPromo({ code, percent });
-    setPromoMessage({ text: `"${code}" applied — ${Math.round(percent * 100)}% off!`, type: 'success' });
+  };
+
+  /** The server turned the code down when placing the order: take it off, so the next try goes through without it. */
+  const dropPromo = (message: string) => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoMessage({ text: message, type: 'error' });
   };
 
   const discount = subtotal * (appliedPromo?.percent ?? 0);
@@ -199,7 +188,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   };
 
   /** Sends the order to the server; it works out the price, the email and the sheet row from the bracelet itself. */
-  const postOrder = async (url: string): Promise<{ success: boolean; error?: string; redirect_url?: string; orderNumber?: number | null }> => {
+  const postOrder = async (url: string): Promise<{ success: boolean; error?: string; redirect_url?: string; orderNumber?: number | null; promoInvalid?: boolean }> => {
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -244,6 +233,11 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       setZiinaSubmitting(true);
       try {
         const data = await postOrder('/api/create-payment-intent');
+        if (data.promoInvalid) {
+          dropPromo(data.error ?? "That code can't be used.");
+          setOrderStatus({ text: `${data.error} The code has been removed — press the button again to continue without it.`, type: 'error' });
+          return;
+        }
         if (!data.success || !data.redirect_url) {
           setOrderStatus({ text: 'Could not start online payment: ' + (data.error ?? 'please try again.'), type: 'error' });
           return;
@@ -264,6 +258,11 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     // --- Cash on Delivery / Bank Transfer: send the order now, details follow on WhatsApp ---
     try {
       const data = await postOrder('/api/place-order');
+      if (data.promoInvalid) {
+        dropPromo(data.error ?? "That code can't be used.");
+        setOrderStatus({ text: `${data.error} The code has been removed — press the button again to continue without it.`, type: 'error' });
+        return;
+      }
       if (!data.success) {
         setOrderStatus({ text: data.error || 'Sorry, something went wrong sending your order — please try again.', type: 'error' });
         return;
@@ -274,8 +273,6 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
           : "Thank you! 🎉 Your order is sent. We'll message you on WhatsApp soon.",
         type: 'success',
       });
-      markAsOrdered();
-      setPromoLocked(true);
       setAppliedPromo(null);
       setPromoInput('');
       setPromoMessage(null);
@@ -328,7 +325,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       input: promoInput, setInput: setPromoInput,
       message: promoMessage,
       applied: appliedPromo,
-      locked: promoLocked,
+      checking: promoChecking,
       apply: applyPromoCode,
     },
     discount,

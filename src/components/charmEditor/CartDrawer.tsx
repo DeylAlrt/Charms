@@ -182,15 +182,14 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                     value={checkout.promo.input}
                     onChange={(e) => checkout.promo.setInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkout.promo.apply(); } }}
-                    disabled={checkout.promo.locked}
-                    placeholder={checkout.promo.locked ? 'New customers only' : 'Promo code'}
+                    placeholder='Promo code'
                     autoComplete="off"
                     className="flex-1 min-w-0 min-h-10 px-3.5 border-2 border-pastel-blue rounded-full text-sm uppercase placeholder:normal-case outline-none focus:border-accent-blue text-navy disabled:opacity-60"
                   />
                   <button
                     type="button"
                     onClick={checkout.promo.apply}
-                    disabled={checkout.promo.locked}
+                    disabled={checkout.promo.checking}
                     className="flex-shrink-0 min-h-10 px-4 rounded-full bg-navy text-white text-sm font-bold hover:bg-accent-blue transition-colors disabled:opacity-60"
                   >
                     Apply

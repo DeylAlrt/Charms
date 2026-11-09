@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
-import { checkSpam, noteSend } from '@/lib/antiSpam';
+import { checkSpam, noteSend, text } from '@/lib/antiSpam';
 import { publicOrigin } from '@/lib/siteUrls';
 import { braceletRecord, readBraceletOrder } from '@/lib/builderOrder';
-import { OutOfStockError, placeOrderNow } from '@/lib/orderStore';
+import { DiscountInvalidError, OutOfStockError, placeOrderNow, resolveDiscount } from '@/lib/orderStore';
 import { paymentLabel } from '@/components/charmEditor/orderOptions';
 
 /**
@@ -27,9 +27,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Please choose how you want to pay.' }, { status: 400 });
     }
 
+    // The promo code is checked with Supabase (active, not expired or used up, first order only…)
+    let discount;
+    try {
+      discount = await resolveDiscount(text(body.promoCode, 30).toUpperCase(), text(body.email, 254), text(body.phone, 30));
+    } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400 });
+      throw err;
+    }
+
     let order;
     try {
-      order = readBraceletOrder(body, publicOrigin(request));
+      order = readBraceletOrder(body, publicOrigin(request), discount);
     } catch (err) {
       return NextResponse.json({ success: false, error: (err as Error).message }, { status: 400 });
     }
@@ -39,6 +48,7 @@ export async function POST(request: NextRequest) {
     try {
       ({ orderNumber } = await placeOrderNow(record, stockLines));
     } catch (err) {
+      if (err instanceof DiscountInvalidError) return NextResponse.json({ success: false, error: err.message, promoInvalid: true }, { status: 400 });
       if (err instanceof OutOfStockError) return NextResponse.json({ success: false, error: err.message }, { status: 409 });
       throw err;
     }

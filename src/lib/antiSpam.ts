@@ -89,3 +89,11 @@ export function checkContactDetails(email: string, phone: string, name: string):
   if (!isPhone(phone)) return 'Please check your WhatsApp number.';
   return null;
 }
+
+/** Counts an attempt and says whether this visitor has made more than `limit` in the last 10 minutes (e.g. guessing promo codes). */
+export function tooManyAttempts(request: NextRequest, route: string, limit: number): boolean {
+  const key = `${route}:${visitorIp(request)}`;
+  const times = [...sendsInWindow(key), Date.now()];
+  recentSends.set(key, times);
+  return times.length > limit;
+}

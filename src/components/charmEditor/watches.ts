@@ -1,7 +1,10 @@
 import type { Charm } from '../charmEditorUtils';
 import data from './stripImages.json';
 
-export const WATCHES: { name: string; file: string; price: number; soldOut?: boolean; links: 'Silver' | 'Gold' }[] = [
+export type Watch = { name: string; file: string; price: number; soldOut?: boolean; links: 'Silver' | 'Gold' };
+
+/** The built-in list, used until the products from Supabase arrive (see liveProducts.ts). */
+export const BUILT_IN_WATCHES: Watch[] = [
   { name: 'Heart Watch', file: 'Watches/Heart Watch.png', price: 55.50, links: 'Silver' },
   { name: 'Rose Gold Digital Watch', file: 'Watches/Rose Gold Digital Watch.png', price: 55.50, links: 'Silver' },
   { name: 'White Square Watch', file: 'Watches/White Square Watch.png', price: 55.50, soldOut: true, links: 'Silver' },
@@ -12,7 +15,15 @@ export const WATCH_LINKS = 6;
 
 export const WATCH_FACE_LINKS = 2.9;
 
-export const getWatch = (file: string) => WATCHES.find(w => w.file === file);
+let watches: Watch[] = BUILT_IN_WATCHES;
+
+/** The watches on offer, in display order. */
+export const getWatches = (): Watch[] => watches;
+
+/** Switches to a new list (the products from Supabase). */
+export const setWatches = (list: Watch[]) => { watches = list; };
+
+export const getWatch = (file: string) => watches.find(w => w.file === file);
 
 type WatchPicture = { w: number; h: number; linkHeight: number; linkMiddle: number; faceLeft: number; faceRight: number };
 const pictures = data.watches as Record<string, WatchPicture>;

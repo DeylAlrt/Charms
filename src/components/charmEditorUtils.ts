@@ -28,9 +28,12 @@ export type Charm = {
 /** Price in AED, taken from the main site's catalogue (see charmCatalogue.ts), or the watch list for a watch. */
 export const getPrice = (filename: string): number => getCatalogueEntry(filename)?.price ?? getWatch(filename)?.price ?? 0;
 
+/** A product photo given as a full link (e.g. ImageKit) rather than a file in public/charms. */
+export const isWebLink = (filename: string) => /^https?:///i.test(filename);
+
 /** Public URL for a charm image; paths contain folders and spaces, so each segment is encoded. */
 export const charmImageUrl = (filename: string): string =>
-  `/charms/${filename.split("/").map(encodeURIComponent).join("/")}`;
+  isWebLink(filename) ? filename : `/charms/${filename.split("/").map(encodeURIComponent).join("/")}`;
 
 /** Sold out = marked in the main site's catalogue (soldOut: [...] in catalogue-data.js). */
 export const isCharmSoldOut = (filename: string): boolean =>

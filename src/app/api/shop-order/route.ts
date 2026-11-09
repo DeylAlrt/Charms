@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loadLiveProducts } from '@/lib/products';
 import { sendOrderNotificationEmail } from '@/lib/emailNotify';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
 import { CORS_HEADERS, readShopOrder, shopEmailParams } from '@/lib/shopOrder';
@@ -21,6 +22,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    // Price with the latest products from Supabase (prices, sold out, hidden).
+    await loadLiveProducts();
     const spam = await checkSpam(request, body, 'shop-order');
     if (!spam.ok) return spam.silent ? NextResponse.json({ success: true }, { headers }) : fail(spam.error, spam.status);
 

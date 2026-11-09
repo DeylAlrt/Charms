@@ -1,7 +1,7 @@
 import { describeDelivery, getDeliveryOption, DELIVERY_DATE_TEXT } from '@/components/charmEditor/orderOptions';
 import { checkContactDetails, text } from './antiSpam';
 import { PROMO_CODES } from './orderPricing';
-import { SITE_ITEMS } from './siteCatalogue';
+import { getSiteItem } from './siteCatalogue';
 
 /**
  * A main site cart order (navilleracharms.com, Js_Folder/cart.js),
@@ -50,7 +50,7 @@ export function readShopOrder(body: Record<string, unknown>): ShopOrder {
 
   const lines: PricedLine[] = [];
   for (const it of items) {
-    const entry = SITE_ITEMS.get(`${it?.subcollection}::${it?.file}`);
+    const entry = getSiteItem(`${it?.subcollection}::${it?.file}`);
     const qty = Number(it?.qty);
     if (!entry) throw new Error('Something in your cart is no longer available — please remove it and try again.');
     if (entry.soldOut) throw new Error(`"${entry.label}" is sold out — please remove it from your cart.`);

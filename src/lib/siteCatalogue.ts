@@ -9,6 +9,7 @@
 
 export type SiteItem = { label: string; section: string; file: string; price: number; soldOut?: boolean };
 
+/** The built-in list, used until the products from Supabase arrive (see src/lib/products.ts). */
 export const SITE_ITEMS = new Map<string, SiteItem>([
   ['Plain Charms — Silver::Plain Links/Silver_Plain_Charm.png', { label: 'Silver', section: 'Plain Charms — Silver', file: 'Plain Links/Silver_Plain_Charm.png', price: 1.50 }],
   ['Plain Charms — Colors::Plain Links/Concave_Plain_Charm.png', { label: 'Concave', section: 'Plain Charms — Colors', file: 'Plain Links/Concave_Plain_Charm.png', price: 2.50 }],
@@ -360,3 +361,13 @@ export const SITE_ITEMS = new Map<string, SiteItem>([
   ['Keychain Links::Keychains/Gold Keychain.png', { label: 'Gold Keychain Link', section: 'Keychain Links', file: 'Keychains/Gold Keychain.png', price: 10.00 }],
   ['Keychain Links::Keychains/Silver Keychain.png', { label: 'Silver Keychain Link', section: 'Keychain Links', file: 'Keychains/Silver Keychain.png', price: 10.00 }],
 ]);
+
+let liveItems: Map<string, SiteItem> | null = null;
+
+/** An item by its cart key, "<section>::<image file>". */
+export const getSiteItem = (key: string): SiteItem | undefined => (liveItems ?? SITE_ITEMS).get(key);
+
+/** Switches to a new list (the products from Supabase). */
+export function setSiteItems(items: SiteItem[]) {
+  liveItems = new Map(items.map(item => [`${item.section}::${item.file}`, item]));
+}

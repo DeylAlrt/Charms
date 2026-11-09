@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loadLiveProducts } from '@/lib/products';
 import { createPaymentIntent } from '@/lib/ziina';
 import { savePendingPayment } from '@/lib/pendingPayments';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
@@ -16,6 +17,8 @@ const PAYMENT = 'Paid Online (Ziina)';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    // Price with the latest products from Supabase (prices, sold out, hidden).
+    await loadLiveProducts();
     const spam = await checkSpam(request, body, 'builder-order');
     if (!spam.ok) {
       return spam.silent

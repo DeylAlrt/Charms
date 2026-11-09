@@ -502,19 +502,33 @@ const toEntries = (set: CatalogueSet, category: string, gold: boolean, sortItems
 };
 
 /**
- * Every catalogue link in display order: sections cheapest first (same as the
+ * The built-in list, in display order: sections cheapest first (same as the
  * main site's collection page), silver items before their gold counterparts.
+ * Used until the products from Supabase arrive, or if Supabase can't be reached.
  */
-export const CATALOGUE_ENTRIES: CatalogueEntry[] = [...CATALOGUE_SECTIONS]
+export const BUILT_IN_ENTRIES: CatalogueEntry[] = [...CATALOGUE_SECTIONS]
   .sort((a, b) => a.price - b.price)
   .flatMap(section => [
     ...toEntries(section, section.category, false, section.sortItems),
     ...(section.gold ? toEntries(section.gold, section.category, true, section.sortItems) : []),
   ]);
 
-const ENTRY_BY_FILE = new Map(CATALOGUE_ENTRIES.map(entry => [entry.file, entry]));
+// The list in use: the built-in one, or the products from Supabase (see liveProducts.ts).
+let entries: CatalogueEntry[] = BUILT_IN_ENTRIES;
+let entryByFile = new Map(entries.map(entry => [entry.file, entry]));
+let categories: string[] = [...new Set(entries.map(entry => entry.category))];
 
-export const getCatalogueEntry = (file: string): CatalogueEntry | undefined => ENTRY_BY_FILE.get(file);
+/** Every catalogue link, in display order. */
+export const getCatalogueEntries = (): CatalogueEntry[] => entries;
+
+export const getCatalogueEntry = (file: string): CatalogueEntry | undefined => entryByFile.get(file);
 
 /** Category pills, in catalogue order. */
-export const CATALOGUE_CATEGORIES: string[] = [...new Set(CATALOGUE_ENTRIES.map(entry => entry.category))];
+export const getCatalogueCategories = (): string[] => categories;
+
+/** Switches to a new list (the products from Supabase). */
+export function setCatalogueEntries(list: CatalogueEntry[]) {
+  entries = list;
+  entryByFile = new Map(list.map(entry => [entry.file, entry]));
+  categories = [...new Set(list.map(entry => entry.category))];
+}

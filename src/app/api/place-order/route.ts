@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loadLiveProducts } from '@/lib/products';
 import { appendOrderToSheet } from '@/lib/appendOrder';
 import { sendOrderNotificationEmail } from '@/lib/emailNotify';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
@@ -13,6 +14,8 @@ import { paymentLabel } from '@/components/charmEditor/orderOptions';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    // Price with the latest products from Supabase (prices, sold out, hidden).
+    await loadLiveProducts();
     const spam = await checkSpam(request, body, 'builder-order');
     if (!spam.ok) {
       return spam.silent

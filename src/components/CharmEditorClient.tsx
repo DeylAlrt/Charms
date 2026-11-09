@@ -8,12 +8,18 @@ import CharmCatalog from './charmEditor/CharmCatalog';
 import CartDrawer from './charmEditor/CartDrawer';
 import SiteHeader from './SiteHeader';
 import type { Charm } from './charmEditorUtils';
+import { applyBuilderProducts, type ProductRow } from './liveProducts';
 
 type Props = {
   charmFiles: string[];
+  /** The products from Supabase, or null to use the built-in lists. */
+  products: ProductRow[] | null;
 };
 
-export default function CharmEditorClient({ charmFiles }: Props) {
+export default function CharmEditorClient({ charmFiles, products }: Props) {
+  // Before anything reads the charm list: switch it to the products from Supabase.
+  if (products) applyBuilderProducts(products);
+
   const bracelet = useBracelet();
   const checkout = useCheckout({
     bracelet: bracelet.bracelet,

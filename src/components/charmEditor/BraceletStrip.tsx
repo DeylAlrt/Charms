@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { StripCharmPicture, TwinChainLayer, WatchLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry, watchCoveredSpots, watchOverhang } from './StripLinks';
-import { WATCHES, WATCH_LINKS, attachedLinkFile, freeSpots, getWatch, isWatchPart, watchSpots } from './watches';
+import { getWatches, WATCH_LINKS, attachedLinkFile, freeSpots, getWatch, isWatchPart, watchSpots } from './watches';
 import { partnerOf } from './twinChains';
 import { baseColorOptions, charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
 import { useBraceletScrollbar } from './useBraceletScrollbar';
@@ -266,7 +266,7 @@ export default function BraceletStrip({
             onOpenChange={setWatchMenuOpen}
             options={[
               { value: NO_WATCH, title: 'No watch', detail: 'A bracelet of charm links', icon: <WatchIcon /> },
-              ...WATCHES.map(w => ({
+              ...getWatches().map(w => ({
                 value: w.file,
                 title: w.name,
                 detail: w.soldOut ? 'Sold out' : `${w.price.toFixed(2)} AED · in the middle, takes ${WATCH_LINKS} links`,

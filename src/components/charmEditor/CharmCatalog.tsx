@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import DraggableCharm from '../DraggableCharm';
-import { charmImageUrl, isCharmSoldOut, type Charm } from '../charmEditorUtils';
-import { CATALOGUE_CATEGORIES, CATALOGUE_ENTRIES } from '../charmCatalogue';
+import { charmImageUrl, isCharmSoldOut, isWebLink, type Charm } from '../charmEditorUtils';
+import { getCatalogueCategories, getCatalogueEntries } from '../charmCatalogue';
 import { preloadStripPicture, thumbUrl } from './stripImages';
 
 /**
@@ -12,8 +12,8 @@ import { preloadStripPicture, thumbUrl } from './stripImages';
  */
 function buildCatalog(charmFiles: string[]): Charm[] {
   const onDisk = new Set(charmFiles);
-  return CATALOGUE_ENTRIES
-    .filter(entry => onDisk.has(entry.file))
+  return getCatalogueEntries()
+    .filter(entry => onDisk.has(entry.file) || isWebLink(entry.file))
     .map((entry, i) => ({
       id: `catalog-${i}`,
       filename: entry.file,
@@ -53,7 +53,7 @@ const CATEGORY_PICTURES: Record<string, string> = {
 };
 
 const categoryPicture = (category: string): string | null => {
-  const file = CATEGORY_PICTURES[category] ?? CATALOGUE_ENTRIES.find(e => e.category === category)?.file;
+  const file = CATEGORY_PICTURES[category] ?? getCatalogueEntries().find(e => e.category === category)?.file;
   return file ? thumbUrl(file, charmImageUrl(file)) : null;
 };
 
@@ -150,7 +150,7 @@ export default function CharmCatalog({ charmFiles, onAddCharm }: CharmCatalogPro
   const onBarPointerUp = () => { barDrag.current = null; };
 
   const charmData = buildCatalog(charmFiles);
-  const categories = ["All", ...CATALOGUE_CATEGORIES];
+  const categories = ["All", ...getCatalogueCategories()];
   const categoryCounts: Record<string, number> = { All: charmData.length };
   for (const charm of charmData) {
     categoryCounts[charm.category!] = (categoryCounts[charm.category!] || 0) + 1;

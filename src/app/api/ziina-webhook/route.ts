@@ -70,6 +70,6 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Ziina webhook processing failed:', error);
     // Non-2xx so Ziina retries delivery.
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Processing failed.' }, { status: 500 });
   }
 }

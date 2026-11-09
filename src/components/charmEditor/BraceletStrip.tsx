@@ -235,7 +235,7 @@ export default function BraceletStrip({
               badge: BRACELET_SIZE_INFO[key].note,
             }))}
             footer={
-              <a href="https://navilleracharms.vercel.app/size-guide.html" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent-blue hover:underline">
+              <a href="https://navilleracharms.com/size-guide.html" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent-blue hover:underline">
                 Not sure? See the size guide →
               </a>
             }
@@ -455,7 +455,7 @@ export default function BraceletStrip({
       {/* Swipe-to-scroll is disabled on the strip above (that gesture drags
           charms instead), so this draggable bar is the strip's only
           scrollbar — styled after the jump-nav scrollbar on
-          navilleracharms.vercel.app's collection page. The browser's own
+          navilleracharms.com's collection page. The browser's own
           scrollbar is hidden via the .no-scrollbar class above. */}
       <div
         ref={scrollbar.trackRef}

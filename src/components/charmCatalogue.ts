@@ -1,6 +1,6 @@
 /**
  * Charm-link catalogue, mirrored from the main site's collection page
- * (navilleracharms.vercel.app → Js_Folder/catalogue-data.js, `links`).
+ * (navilleracharms.com → Js_Folder/catalogue-data.js, `links`).
  * Prices, labels, and sold-out flags here should be kept in sync with it.
  *
  * `file` is the image path relative to public/charms. Each section's `gold`

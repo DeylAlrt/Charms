@@ -1,6 +1,6 @@
 /**
  * Delivery and payment choices for the order form. Kept in sync with the
- * main site's cart (navilleracharms.vercel.app → Js_Folder/cart.js).
+ * main site's cart (navilleracharms.com → Js_Folder/cart.js).
  */
 
 export type DeliveryMethod = 'pickup' | 'metro' | 'home';

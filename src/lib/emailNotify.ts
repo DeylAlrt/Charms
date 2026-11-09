@@ -1,40 +1,36 @@
 /**
- * Server-side order notification email, sent via EmailJS's plain REST API.
+ * Sends the shop's emails (orders and contact messages) from the server,
+ * through EmailJS's REST API. Browsers never send these directly, so the
+ * contents always come from the server's own checks and catalogue.
  *
- * The @emailjs/browser SDK used elsewhere in this app (CharmEditorClient)
- * can't run here — it needs a browser `window`, and this file only runs in
- * API routes (Node). EmailJS's REST endpoint works from any environment,
- * but by default EmailJS blocks requests that don't come from a browser
- * (no Origin header) as an anti-abuse measure.
- *
- * ONE-TIME DASHBOARD STEP: in the EmailJS dashboard, under
- * Account → Security, enable "Allow EmailJS API for non-browser
- * applications" — otherwise this call will fail with a 403 even though
- * the service/template/public key are all correct. This can't be done
- * from code; it's a toggle only you can flip in your account.
+ * EmailJS dashboard setup, in EACH of the two EmailJS accounts:
+ *   - Account → Security: "Allow EmailJS API for non-browser applications" ON
+ *   - Account → API keys: copy the Private Key into Vercel's environment variables
+ *     (EMAILJS_PRIVATE_KEY for the builder account, EMAILJS_SITE_PRIVATE_KEY for
+ *     the main site's order account), then turn on "Use Private Key" under
+ *     Security so nobody else can send with the public key.
  */
 
 const EMAILJS_REST_ENDPOINT = 'https://api.emailjs.com/api/v1.0/email/send';
 
-// The same EmailJS service/template/public keys each order form already uses
-// in the browser, so paid-online orders arrive as the same emails:
-//   builder — the charm builder's bracelet order (per-slot charm pictures)
-//   site    — the main site's cart order (Js_Folder/cart.js, items_html)
-// The "non-browser applications" setting above must be on in EACH EmailJS
-// account these keys belong to.
+// builder — the charm builder's bracelet order (per-slot charm pictures)
+// site    — the main site's cart order (items_html)
+// contact — the main site's contact form (same EmailJS account as the builder)
 const EMAILJS_TEMPLATES = {
-  builder: { serviceId: 'service_335t5bn', templateId: 'template_dpoi8cn', publicKey: '-2tCjwFJUnT97N93w' },
-  site: { serviceId: 'service_ff6chqi', templateId: 'template_k1boxcg', publicKey: 'vvg-sBt7pyZ2SOfHk' },
+  builder: { serviceId: 'service_335t5bn', templateId: 'template_dpoi8cn', publicKey: '-2tCjwFJUnT97N93w', privateKeyEnv: 'EMAILJS_PRIVATE_KEY' },
+  site: { serviceId: 'service_ff6chqi', templateId: 'template_k1boxcg', publicKey: 'vvg-sBt7pyZ2SOfHk', privateKeyEnv: 'EMAILJS_SITE_PRIVATE_KEY' },
+  contact: { serviceId: 'service_vc0fhb9', templateId: 'template_ljnicp3', publicKey: '-2tCjwFJUnT97N93w', privateKeyEnv: 'EMAILJS_PRIVATE_KEY' },
 } as const;
 
 export type OrderEmailTemplate = keyof typeof EMAILJS_TEMPLATES;
 
-/** Sends an order-notification email server-side, using the builder's or the main site's template. */
+/** Sends one email with the given EmailJS template. Throws if EmailJS refuses it. */
 export async function sendOrderNotificationEmail(
   templateParams: Record<string, string>,
   template: OrderEmailTemplate = 'builder'
 ): Promise<void> {
-  const { serviceId, templateId, publicKey } = EMAILJS_TEMPLATES[template];
+  const { serviceId, templateId, publicKey, privateKeyEnv } = EMAILJS_TEMPLATES[template];
+  const accessToken = process.env[privateKeyEnv];
   const res = await fetch(EMAILJS_REST_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -42,6 +38,7 @@ export async function sendOrderNotificationEmail(
       service_id: serviceId,
       template_id: templateId,
       user_id: publicKey,
+      ...(accessToken ? { accessToken } : {}),
       template_params: templateParams,
     }),
   });

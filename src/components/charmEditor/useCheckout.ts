@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import emailjs from '@emailjs/browser';
 import { PROMO_CODES } from '@/lib/orderPricing';
-import { charmImageUrl, plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
-import { WATCH_LINKS, watchOn } from './watches';
-import {
-  DELIVERY_DATE_TEXT, DELIVERY_OPTIONS, describeDelivery, getDeliveryOption, paymentLabel,
-  type DeliveryMethod, type PaymentMethod,
-} from './orderOptions';
+import { plainCharmFile, type BaseColor, type Charm } from '../charmEditorUtils';
+import { DELIVERY_OPTIONS, getDeliveryOption, type DeliveryMethod, type PaymentMethod } from './orderOptions';
+import { TURNSTILE_SITE_KEY } from './HumanCheck';
 
 /** Extracts a human-readable message from a caught value of unknown shape. */
 const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
@@ -17,10 +13,6 @@ const getErrorMessage = (err: unknown, fallback = 'Unknown error'): string => {
   }
   return typeof err === 'string' ? err : fallback;
 };
-
-/** Charm name for orders and emails; the category disambiguates labels like "Star" that appear in several sections. */
-const orderName = (item: Charm) =>
-  item.category ? `${item.displayName} (${item.category})` : item.displayName ?? item.filename;
 
 // Same promo codes and new-customer-only restriction as the main site's
 // cart (Js_Folder/cart.js) — one-time use tracked per browser.
@@ -53,8 +45,9 @@ type CheckoutContext = {
 /**
  * The cart drawer's full lifecycle: which of its two views is showing,
  * the checkout form's fields, the promo code, and submitting the finished
- * order (Sheets log + email) — mirrors the drawer on
- * navilleracharms.vercel.app's collection page (Js_Folder/cart.js).
+ * order — mirrors the drawer on navilleracharms.com's collection page
+ * (Js_Folder/cart.js). The order is sent to the server, which works out the
+ * price, the email and the sheet row from the bracelet itself.
  */
 export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }: CheckoutContext) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -85,16 +78,17 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const [orderStatus, setOrderStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Ziina is paid right here in an embedded iframe; Cash on Delivery and
-  // Bank Transfer just send the order, and the details follow on WhatsApp.
+  // Spam protection: the "I'm human" check and a hidden field only bots fill in.
+  const [humanToken, setHumanToken] = useState('');
+  const [humanCheckKey, setHumanCheckKey] = useState(0);
+  const [website, setWebsite] = useState('');
+
+  // Ziina is paid on Ziina's own page; Cash on Delivery and Bank Transfer
+  // just send the order, and the details follow on WhatsApp.
   const [ziinaSubmitting, setZiinaSubmitting] = useState(false);
   const [ziinaEmbedUrl, setZiinaEmbedUrl] = useState<string | null>(null);
   const [ziinaResult, setZiinaResult] = useState<'success' | 'failed' | 'canceled' | null>(null);
   const ziinaIframeRef = useRef<HTMLIFrameElement | null>(null);
-
-  useEffect(() => {
-    emailjs.init('-2tCjwFJUnT97N93w'); // EmailJS Public Key
-  }, []);
 
   useEffect(() => {
     setPromoLocked(hasOrderedBefore());
@@ -182,37 +176,6 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   const discount = subtotal * (appliedPromo?.percent ?? 0);
   const subtotalAfterDiscount = subtotal - discount;
 
-  // "20 charms", or with a watch: "20 links incl. Heart Watch (takes 6)"
-  const watch = watchOn(bracelet);
-  const sizeText = watch ? `${maxSlots} links incl. ${watch.displayName} (takes ${WATCH_LINKS})` : `${maxSlots} charms`;
-
-  /** Builds the per-slot image/name fields EmailJS' order template expects. */
-  const buildCharmEmailFields = (baseUrl: string) => {
-    const fields: Record<string, string> = {};
-    const textLayoutLines: string[] = [];
-    const plainCharmUrl = baseUrl + charmImageUrl(plainCharmFile(selectedBaseColor));
-
-    for (let i = 0; i < 22; i++) {
-      const item = i < maxSlots ? bracelet[i] : undefined;
-      const isEmpty = !item || item.isPlaceholder;
-      const imageUrl = isEmpty ? plainCharmUrl : baseUrl + item.img;
-      const charmName = isEmpty
-        ? (i < maxSlots ? `${selectedBaseColor} Plain` : 'Empty')
-        : item.pairId ? `${orderName(item)} — twin chain, half ${(item.half ?? 0) + 1} of 2`
-        : item.watchPart !== undefined ? `${item.displayName} — watch, part ${item.watchPart + 1} of ${WATCH_LINKS}`
-        : orderName(item);
-
-      fields[`charm_${i + 1}_url`] = imageUrl;
-      fields[`charm_${i + 1}_name`] = charmName;
-      if (i < maxSlots) {
-        textLayoutLines.push(isEmpty ? `[${i + 1}] ${selectedBaseColor} Plain Charm` : `[${i + 1}] ${charmName}`);
-      }
-    }
-
-    fields.text_layout = textLayoutLines.join('\n');
-    return fields;
-  };
-
   const resetForm = () => {
     setEmail('');
     setPhoneNumber('');
@@ -231,7 +194,37 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     if (!deliveryOption) return 'Please choose a metro station (step 2).';
     if (deliveryOption.needsAddress && !address.trim()) return 'Please type your home address (step 2).';
     if (!paymentMethod) return 'Please choose how you want to pay (step 3).';
+    if (TURNSTILE_SITE_KEY && !humanToken) return 'Please tick the "I\'m human" check.';
     return null;
+  };
+
+  /** Sends the order to the server; it works out the price, the email and the sheet row from the bracelet itself. */
+  const postOrder = async (url: string): Promise<{ success: boolean; error?: string; redirect_url?: string }> => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName,
+          phone: phoneNumber,
+          email,
+          deliveryOptionId,
+          address,
+          notes,
+          paymentMethod,
+          baseColor: selectedBaseColor,
+          slots: Array.from({ length: maxSlots }, (_, i) => bracelet[i]?.filename ?? plainCharmFile(selectedBaseColor)),
+          promoCode: appliedPromo?.code ?? '',
+          website,
+          turnstileToken: humanToken,
+        }),
+      });
+      return await response.json().catch(() => ({ success: false, error: 'No answer from the server — please try again.' }));
+    } finally {
+      // Each "I'm human" pass is good for one send.
+      setHumanToken('');
+      setHumanCheckKey(k => k + 1);
+    }
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -247,40 +240,12 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     setSubmitting(true);
     setOrderStatus(null);
 
-    const deliveryText = describeDelivery(deliveryOption, address);
-    const total = subtotalAfterDiscount + deliveryFee;
-    const charmsList = bracelet
-      .filter(item => item && !item.isPlaceholder && item.half !== 1 && !(item.watchPart ?? 0)) // a twin chain / watch is listed once
-      .map(orderName)
-      .join(', ');
-    const baseUrl = window.location.origin;
-
     if (paymentMethod === 'ziina') {
       setZiinaSubmitting(true);
       try {
-        const response = await fetch('/api/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customerName,
-            phone: phoneNumber,
-            email,
-            meetupPlace: deliveryText,
-            deliveryDate: DELIVERY_DATE_TEXT,
-            notes,
-            braceletSize: sizeText,
-            baseColor: selectedBaseColor,
-            // The server recomputes the price from these — it never trusts a total from the browser
-            slots: Array.from({ length: maxSlots }, (_, i) => bracelet[i]?.filename ?? plainCharmFile(selectedBaseColor)),
-            deliveryOptionId,
-            promoCode: appliedPromo?.code ?? '',
-            charmsList,
-            emailFields: buildCharmEmailFields(baseUrl),
-          }),
-        });
-        const data = await response.json();
-        if (!data.success) {
-          setOrderStatus({ text: 'Could not start online payment: ' + data.error, type: 'error' });
+        const data = await postOrder('/api/create-payment-intent');
+        if (!data.success || !data.redirect_url) {
+          setOrderStatus({ text: 'Could not start online payment: ' + (data.error ?? 'please try again.'), type: 'error' });
           return;
         }
         // Go to Ziina's secure payment page; Ziina sends the customer back to
@@ -297,60 +262,12 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     }
 
     // --- Cash on Delivery / Bank Transfer: send the order now, details follow on WhatsApp ---
-    const payment = paymentLabel(paymentMethod);
-    const emailParams = {
-      to_email: 'sales.navilleracharms@gmail.com',
-      customer_name: customerName,
-      phone: phoneNumber,
-      customer_email: email,
-      pickup_time: '',
-      meetup_place: deliveryText,
-      delivery_date: DELIVERY_DATE_TEXT,
-      payment_method: payment,
-      // Payment is repeated in the notes so it shows even in a template without {{payment_method}}.
-      notes: notes ? `Payment: ${payment}\n${notes}` : `Payment: ${payment}`,
-      bracelet_size: sizeText,
-      base_color: selectedBaseColor,
-      subtotal: subtotal.toFixed(2),
-      promo_code: appliedPromo ? appliedPromo.code : 'None',
-      discount: discount.toFixed(2),
-      delivery_fee: deliveryFee.toFixed(2),
-      total: total.toFixed(2),
-      ...buildCharmEmailFields(baseUrl),
-    };
-
-    // Log the order to Google Sheets. Non-fatal: the email is what actually
-    // notifies the shop, so an order should still go through if this fails.
-    // The sheet's old "Pickup Time" column (C) now holds the payment method.
     try {
-      const sheetResponse = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderData: {
-            customerName,
-            phone: phoneNumber,
-            pickupTime: payment,
-            meetupPlace: deliveryText,
-            deliveryDate: DELIVERY_DATE_TEXT,
-            size: sizeText,
-            charms: charmsList,
-            subtotal: subtotalAfterDiscount.toFixed(2),
-            deliveryFee: deliveryFee.toFixed(2),
-            total: total.toFixed(2),
-          },
-        }),
-      });
-      const sheetData = await sheetResponse.json();
-      if (!sheetData.success) {
-        console.error('Failed to save order to Google Sheets:', sheetData.error);
+      const data = await postOrder('/api/place-order');
+      if (!data.success) {
+        setOrderStatus({ text: data.error || 'Sorry, something went wrong sending your order — please try again.', type: 'error' });
+        return;
       }
-    } catch (sheetError) {
-      console.error('Google Sheets request failed:', sheetError);
-    }
-
-    try {
-      await emailjs.send('service_335t5bn', 'template_dpoi8cn', emailParams);
       setOrderStatus({ text: "Thank you! 🎉 Your order is sent. We'll message you on WhatsApp soon.", type: 'success' });
       markAsOrdered();
       setPromoLocked(true);
@@ -360,7 +277,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       resetForm();
       setTimeout(() => setDrawerOpen(false), 3500);
     } catch (error) {
-      console.error('Email sending failed:', error);
+      console.error('Sending the order failed:', error);
       setOrderStatus({ text: 'Sorry, something went wrong sending your order: ' + getErrorMessage(error), type: 'error' });
     } finally {
       setSubmitting(false);
@@ -414,5 +331,6 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
     orderStatus,
     submitting,
     handleFormSubmit,
+    spamGuard: { setHumanToken, humanCheckKey, website, setWebsite },
   };
 }

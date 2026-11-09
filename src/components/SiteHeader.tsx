@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 /**
- * Top bar matching navilleracharms.vercel.app (Css_Folder/navbar.css there):
+ * Top bar matching navilleracharms.com (Css_Folder/navbar.css there):
  * logo on the left, the site's page links across the middle on desktop, and
  * on phones a hamburger that slides in the same dark sidebar menu.
  */
 
-const SITE = 'https://navilleracharms.vercel.app';
+const SITE = 'https://navilleracharms.com';
 const LOGO = 'https://ik.imagekit.io/mpojoducq/Logo.png?tr=t-true,h-160';
 const ICON = (name: string) => `https://img.icons8.com/material-outlined/24/b6b6b6/${name}.png`;
 

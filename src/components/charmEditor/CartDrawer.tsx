@@ -5,6 +5,7 @@ import { getPrice, type Charm } from '../charmEditorUtils';
 import type { useCheckout } from './useCheckout';
 import { DELIVERY_METHODS, DELIVERY_OPTIONS, PAYMENT_OPTIONS, formatFee } from './orderOptions';
 import { thumbUrl } from './stripImages';
+import HumanCheck, { HoneypotField } from './HumanCheck';
 
 // 16px+ text on form fields keeps iOS Safari from zooming in when they're tapped.
 const LABEL = 'flex flex-col gap-1.5 text-base font-semibold text-gray-700';
@@ -87,7 +88,7 @@ function groupCartItems(bracelet: Charm[]) {
 /**
  * The cart, as a single right-side sliding drawer with two views (items,
  * then the order form) — the same structure as the drawer on
- * navilleracharms.vercel.app's collection page (Css_Folder/cart.css,
+ * navilleracharms.com's collection page (Css_Folder/cart.css,
  * Js_Folder/cart.js), rather than two separate centered popups.
  */
 export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, onIncrement, onRemoveAll }: CartDrawerProps) {
@@ -347,6 +348,9 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                 <span>{(checkout.subtotalAfterDiscount + checkout.deliveryFee).toFixed(2)} AED</span>
               </div>
             </div>
+
+            <HoneypotField value={checkout.spamGuard.website} onChange={checkout.spamGuard.setWebsite} />
+            <HumanCheck onToken={checkout.spamGuard.setHumanToken} resetKey={checkout.spamGuard.humanCheckKey} />
 
             {checkout.orderStatus && (
               <p role="status" className={`text-base font-semibold text-center ${checkout.orderStatus.type === 'success' ? 'text-success' : 'text-danger'}`}>

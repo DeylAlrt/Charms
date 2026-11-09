@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
 import { createPaymentIntent } from '@/lib/ziina';
-import { savePendingPayment } from '@/lib/pendingPayments';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
-import { braceletEmailParams, braceletSheetRow, readBraceletOrder } from '@/lib/builderOrder';
+import { braceletRecord, readBraceletOrder } from '@/lib/builderOrder';
+import { OutOfStockError, saveOrder } from '@/lib/orderStore';
 
-const PAYMENT = 'Paid Online (Ziina)';
+const PAYMENT = { method: 'ziina', label: 'Paid Online (Ziina)' } as const;
 
 /**
  * Starts a Ziina payment for a charm builder order.
  *
- * The order isn't logged or emailed yet: it's stashed in the PendingPayments
- * sheet, and /api/ziina-webhook logs and emails it once Ziina confirms the
- * payment. Everything in it is worked out here from the bracelet's pictures.
+ * The order is saved in Supabase as 'awaiting_payment' (stock checked, not
+ * taken yet). /api/ziina-webhook marks it paid, takes the stock and emails the
+ * shop once Ziina confirms the payment.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -42,11 +42,16 @@ export async function POST(request: NextRequest) {
       failureUrl: `${origin}/?ziina=failed`,
     });
 
+    const { record, stockLines } = braceletRecord(order, PAYMENT, intent.id);
+    try {
+      await saveOrder(record, stockLines, false);
+    } catch (err) {
+      if (err instanceof OutOfStockError) return NextResponse.json({ success: false, error: err.message }, { status: 409 });
+      // Without the saved order, a payment couldn't be matched to it — so don't send the customer to pay.
+      console.error('Could not save the Ziina order in Supabase:', err);
+      return NextResponse.json({ success: false, error: 'Online payment is unavailable right now — please choose Cash on Delivery or Bank Transfer.' }, { status: 503 });
+    }
     noteSend(request, 'builder-order');
-    await savePendingPayment(intent.id, {
-      emailParams: braceletEmailParams(order, PAYMENT),
-      sheetOrderData: braceletSheetRow(order, PAYMENT),
-    });
 
     return NextResponse.json({ success: true, id: intent.id, redirect_url: intent.redirect_url, embedded_url: intent.embedded_url });
   } catch (error) {

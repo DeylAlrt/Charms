@@ -16,7 +16,7 @@ export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_pJ9zqlsj92-PfgkMmntg3w_6
 
 const REFRESH_SECONDS = 60;
 
-const COLUMNS = 'name,category,section,builder_category,kind,metal,price_aed,image_path,image_url,sold_out,stock,sort_order';
+const COLUMNS = 'id,name,category,section,builder_category,kind,metal,price_aed,image_path,image_url,sold_out,stock,sort_order';
 
 /** The active products, or null if Supabase couldn't be reached. */
 export async function fetchProducts(): Promise<ProductRow[] | null> {
@@ -36,11 +36,20 @@ export async function fetchProducts(): Promise<ProductRow[] | null> {
   }
 }
 
+// Product ids, for taking stock: by builder photo, and by main site cart key ("<section>::<file>")
+let idByBuilderFile = new Map<string, string>();
+let idBySiteKey = new Map<string, string>();
+
+export const productIdForBuilderFile = (file: string) => idByBuilderFile.get(file);
+export const productIdForSiteKey = (key: string) => idBySiteKey.get(key);
+
 /** Loads the products and switches the order checks (builder and main site) to them. Call before pricing an order. */
 export async function loadLiveProducts(): Promise<void> {
   const rows = await fetchProducts();
   if (!rows) return;
   applyBuilderProducts(rows);
+  idByBuilderFile = new Map(rows.filter(r => r.id && r.builder_category).map(r => [productFile(r), r.id!]));
+  idBySiteKey = new Map(rows.filter(r => r.id).map(r => [`${r.section}::${productFile(r)}`, r.id!]));
   setSiteItems(rows.map(r => ({
     label: r.name,
     section: r.section,

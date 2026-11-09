@@ -1,35 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPaymentIntent } from '@/lib/ziina';
-import { findPendingPayment, markPendingPaymentStatus } from '@/lib/pendingPayments';
-import { appendOrderToSheet } from '@/lib/appendOrder';
 import { sendOrderNotificationEmail } from '@/lib/emailNotify';
+import { markEmailSent, markOrderPaid, withOrderNumber } from '@/lib/orderStore';
 
 /**
- * Ziina calls this when a payment intent's status changes
- * (event: "payment_intent.status.updated").
+ * Ziina calls this when a payment's status changes.
  *
- * Security note: the webhook body itself is NEVER trusted for the actual
- * payment status — it's only used to learn which payment intent ID to look
- * up. The real status is re-fetched directly from Ziina's API (Bearer-
- * token authenticated, server-to-server) before an order is ever marked
- * paid and logged/emailed. This means even a forged or malformed webhook
- * call can't fake a payment — it can only point us at a real intent ID,
- * whose real status Ziina alone controls.
+ * The webhook body is never trusted for the payment status: it's only used to
+ * learn the payment id, and the real status is fetched from Ziina directly
+ * (server to server, with the secret key). So a forged call can't fake a
+ * payment. Once paid, the order in Supabase is marked 'paid' (taking its
+ * stock) and the order email is sent — once, even if Ziina repeats the call.
  */
 
-/** Best-effort extraction of the payment intent ID — the exact webhook payload shape isn't fully documented, so a few likely locations are checked. */
-function extractPaymentIntentId(body: any): string | null {
-  return (
-    body?.data?.id ||
-    body?.data?.object?.id ||
-    body?.payment_intent?.id ||
-    body?.id ||
-    null
-  );
+/** The payment id — the exact payload shape isn't fully documented, so a few likely places are checked. */
+function extractPaymentIntentId(body: unknown): string | null {
+  const b = body as { data?: { id?: string; object?: { id?: string } }; payment_intent?: { id?: string }; id?: string } | null;
+  const id = b?.data?.id || b?.data?.object?.id || b?.payment_intent?.id || b?.id;
+  return typeof id === 'string' && id ? id : null;
 }
 
 export async function POST(request: NextRequest) {
-  let body: any;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
@@ -38,38 +30,31 @@ export async function POST(request: NextRequest) {
 
   const paymentIntentId = extractPaymentIntentId(body);
   if (!paymentIntentId) {
-    console.error('Ziina webhook: could not find a payment intent ID in payload:', body);
+    console.error('Ziina webhook: no payment id in payload:', body);
     return NextResponse.json({ success: false, error: 'No payment intent ID in payload.' }, { status: 400 });
   }
 
   try {
-    // Re-verify with Ziina directly — never trust the webhook body's own status field.
     const intent = await getPaymentIntent(paymentIntentId);
-
     if (intent.status !== 'completed') {
-      // Not a success event (or not yet) — nothing to do. Not an error.
       return NextResponse.json({ success: true, status: intent.status, action: 'ignored' });
     }
 
-    const pending = await findPendingPayment(paymentIntentId);
-    if (!pending) {
-      console.error(`Ziina webhook: no pending order found for completed payment ${paymentIntentId}`);
-      return NextResponse.json({ success: false, error: 'No matching pending order found.' }, { status: 404 });
+    const order = await markOrderPaid(paymentIntentId);
+    if (!order) {
+      console.error(`Ziina webhook: no order in Supabase for completed payment ${paymentIntentId}`);
+      return NextResponse.json({ success: false, error: 'No matching order found.' }, { status: 404 });
     }
-
-    if (pending.status === 'processed') {
-      // Already handled on a previous (retried) webhook delivery — idempotent no-op.
+    if (order.email_sent) {
       return NextResponse.json({ success: true, action: 'already_processed' });
     }
 
-    await appendOrderToSheet(pending.order.sheetOrderData as any);
-    await sendOrderNotificationEmail(pending.order.emailParams, pending.order.emailTemplate ?? 'builder');
-    await markPendingPaymentStatus(pending.rowNumber, 'processed');
-
-    return NextResponse.json({ success: true, action: 'order_confirmed' });
-  } catch (error: any) {
+    await sendOrderNotificationEmail(withOrderNumber(order.email_params, order.order_number), order.email_template);
+    await markEmailSent(order.id);
+    return NextResponse.json({ success: true, action: 'order_confirmed', orderNumber: order.order_number });
+  } catch (error) {
     console.error('Ziina webhook processing failed:', error);
-    // Non-2xx so Ziina retries delivery.
+    // Not 2xx, so Ziina tries again later.
     return NextResponse.json({ success: false, error: 'Processing failed.' }, { status: 500 });
   }
 }

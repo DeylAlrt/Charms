@@ -8,6 +8,8 @@ import { BUILT_IN_WATCHES, setWatches, type Watch } from './charmEditor/watches'
  * dashboard without touching the code.
  */
 export type ProductRow = {
+  /** Only on the server (not sent to the browser). */
+  id?: string;
   name: string;
   category: string;
   section: string;

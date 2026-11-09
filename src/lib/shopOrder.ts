@@ -2,6 +2,8 @@ import { describeDelivery, getDeliveryOption, DELIVERY_DATE_TEXT } from '@/compo
 import { checkContactDetails, text } from './antiSpam';
 import { PROMO_CODES } from './orderPricing';
 import { getSiteItem } from './siteCatalogue';
+import type { NewOrder, StockLine } from './orderStore';
+import { productIdForSiteKey } from './products';
 
 /**
  * A main site cart order (navilleracharms.com, Js_Folder/cart.js),
@@ -29,6 +31,8 @@ type PricedLine = { label: string; section: string; file: string; price: number;
 export type ShopOrder = {
   customer: { name: string; phone: string; email: string; notes: string };
   lines: PricedLine[];
+  deliveryOptionId: string;
+  address: string;
   meetupPlace: string;
   code: string;
   itemsTotal: number;
@@ -71,6 +75,8 @@ export function readShopOrder(body: Record<string, unknown>): ShopOrder {
   return {
     customer: { name, phone, email, notes: text(body.notes, 1000) },
     lines,
+    deliveryOptionId: delivery.id,
+    address,
     meetupPlace: describeDelivery(delivery, address),
     code: percent ? code : '',
     itemsTotal,
@@ -131,18 +137,38 @@ export function shopEmailParams(order: ShopOrder, payment: string): Record<strin
   };
 }
 
-/** The Orders sheet row for a main site order. The old "Pickup Time" column holds the payment method. */
-export function shopSheetRow(order: ShopOrder, payment: string) {
+/** The order as saved in Supabase, and the stock it uses. */
+export function shopRecord(
+  order: ShopOrder,
+  payment: { method: 'ziina' | 'cod' | 'bank'; label: string },
+  ziinaPaymentId?: string,
+): { record: NewOrder; stockLines: StockLine[] } {
+  const { customer } = order;
+  const stockLines = order.lines
+    .map(l => ({ product_id: productIdForSiteKey(`${l.section}::${l.file}`), qty: l.qty }))
+    .filter((l): l is StockLine => !!l.product_id);
   return {
-    customerName: order.customer.name,
-    phone: order.customer.phone,
-    pickupTime: payment,
-    meetupPlace: order.meetupPlace,
-    deliveryDate: DELIVERY_DATE_TEXT,
-    size: 'Shop order',
-    charms: order.lines.map(l => `${l.label} x${l.qty} (${l.section})`).join(', '),
-    subtotal: round2(order.itemsTotal - order.discount).toFixed(2),
-    deliveryFee: order.deliveryFee.toFixed(2),
-    total: order.total.toFixed(2),
+    record: {
+      source: 'shop',
+      status: payment.method === 'ziina' ? 'awaiting_payment' : 'pending',
+      payment_method: payment.method,
+      ziina_payment_id: ziinaPaymentId,
+      customer_name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      address: order.address || undefined,
+      delivery_option: order.deliveryOptionId,
+      delivery_text: order.meetupPlace,
+      items: order.lines.map(l => ({ name: l.label, section: l.section, file: l.file, qty: l.qty, unit_price_aed: l.price })),
+      discount_code: order.code || undefined,
+      subtotal_aed: order.itemsTotal,
+      discount_aed: order.discount,
+      delivery_fee_aed: order.deliveryFee,
+      total_aed: order.total,
+      notes: customer.notes || undefined,
+      email_template: 'site',
+      email_params: shopEmailParams(order, payment.label),
+    },
+    stockLines,
   };
 }

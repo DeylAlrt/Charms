@@ -34,7 +34,7 @@ export default async function Page() {
 
   // Prices, sold out and hidden charms from Supabase (null = use the built-in lists).
   // Only what the builder sells is sent to the browser.
-  const products = (await fetchProducts())?.filter(p => p.builder_category) ?? null;
+  const products = (await fetchProducts())?.filter(p => p.builder_category).map(p => ({ ...p, id: undefined })) ?? null;
 
   return <CharmEditorClient charmFiles={charmFiles} products={products} />;
 }

@@ -5,14 +5,20 @@ import { isTwinChain } from '@/components/charmEditor/twinChains';
 import { WATCH_LINKS, getWatch } from '@/components/charmEditor/watches';
 import { checkContactDetails, text } from './antiSpam';
 import { priceOrder, type PricedOrder } from './orderPricing';
+import type { NewOrder, StockLine } from './orderStore';
+import { productIdForBuilderFile } from './products';
 
 /**
  * A charm builder order, worked out entirely on the server from the bracelet
  * the customer sent (`slots`: the picture of every link, in order). The price,
- * the charm list, the pictures in the email and the Sheet row all come from
- * the catalogue here, so an edited request can't make them disagree with
+ * the charm list and the pictures in the email all come from
+ * the catalogue here (the saved order too), so an edited request can't make them disagree with
  * what's actually being paid for.
  */
+
+/** One product on the bracelet, as charged. */
+export type BraceletLine = { file: string; name: string; category: string; qty: number; unit_price_aed: number };
+
 export type BraceletOrder = {
   customer: { name: string; phone: string; email: string; notes: string };
   deliveryText: string;
@@ -20,8 +26,12 @@ export type BraceletOrder = {
   baseColor: BaseColor;
   promoCode: string;
   priced: PricedOrder;
-  /** Each charm once (a twin chain / watch once, plain links left out), for the Sheet. */
-  charmsList: string;
+  deliveryOptionId: string;
+  address: string;
+  /** Each product once with its quantity (a twin chain / watch counts as 1). */
+  lines: BraceletLine[];
+  /** "[1] Silver Plain Charm", … one per spot. */
+  layout: string[];
   /** charm_1_url … charm_22_name and text_layout, for the EmailJS order template. */
   slotFields: Record<string, string>;
 };
@@ -51,7 +61,6 @@ export function readBraceletOrder(body: Record<string, unknown>, origin: string)
   const plainFile = plainCharmFile(baseColor);
   const twinSeen = new Map<string, number>();
   const watchSeen = new Map<string, number>();
-  const listed: string[] = [];
   const slotFields: Record<string, string> = {};
   const layout: string[] = [];
 
@@ -71,16 +80,13 @@ export function readBraceletOrder(body: Record<string, unknown>, origin: string)
       const n = (twinSeen.get(file) ?? 0) + 1;
       twinSeen.set(file, n);
       const base = `${entry.displayName} (${entry.category})`;
-      if (n % 2 === 1) listed.push(base);
       label = `${base} — twin chain, half ${n % 2 === 1 ? 1 : 2} of 2`;
     } else if (watch) {
       const n = (watchSeen.get(file) ?? 0) + 1;
       watchSeen.set(file, n);
-      if (n === 1) listed.push(watch.name);
       label = `${watch.name} — watch, part ${n} of ${WATCH_LINKS}`;
     } else {
       label = `${entry!.displayName} (${entry!.category})`;
-      listed.push(label);
     }
     slotFields[`charm_${i + 1}_url`] = origin + charmImageUrl(file);
     slotFields[`charm_${i + 1}_name`] = label;
@@ -91,14 +97,34 @@ export function readBraceletOrder(body: Record<string, unknown>, origin: string)
   const watch = [...watchSeen.keys()].map(getWatch)[0];
   const sizeText = watch ? `${slots.length} links incl. ${watch.name} (takes ${WATCH_LINKS})` : `${slots.length} charms`;
 
+  // One line per product: a twin chain covers 2 spots and a watch WATCH_LINKS, each sold as one
+  const spotsByFile = new Map<string, number>();
+  for (const file of slots) spotsByFile.set(file, (spotsByFile.get(file) ?? 0) + 1);
+  const lines: BraceletLine[] = [...spotsByFile].map(([file, spots]) => {
+    const entry = getCatalogueEntry(file);
+    const w = getWatch(file);
+    if (w) return { file, name: w.name, category: 'Watch', qty: spots / WATCH_LINKS, unit_price_aed: w.price };
+    const twin = isTwinChain(file);
+    return {
+      file,
+      name: file === plainFile ? `${baseColor} Plain` : entry!.displayName,
+      category: entry!.category,
+      qty: twin ? spots / 2 : spots,
+      unit_price_aed: entry!.price,
+    };
+  });
+
   return {
     customer: { name, phone, email, notes: text(body.notes, 1000) },
+    deliveryOptionId: delivery.id,
+    address,
     deliveryText: describeDelivery(delivery, address),
     sizeText,
     baseColor,
     promoCode: priced.discount > 0 ? promoCode : '',
     priced,
-    charmsList: listed.join(', '),
+    lines,
+    layout,
     slotFields,
   };
 }
@@ -128,18 +154,40 @@ export function braceletEmailParams(order: BraceletOrder, payment: string): Reco
   };
 }
 
-/** The Orders sheet row for a builder order. The old "Pickup Time" column holds the payment method. */
-export function braceletSheetRow(order: BraceletOrder, payment: string) {
+/** The order as saved in Supabase, and the stock it uses. */
+export function braceletRecord(
+  order: BraceletOrder,
+  payment: { method: 'ziina' | 'cod' | 'bank'; label: string },
+  ziinaPaymentId?: string,
+): { record: NewOrder; stockLines: StockLine[] } {
+  const { customer, priced } = order;
+  const stockLines = order.lines
+    .map(l => ({ product_id: productIdForBuilderFile(l.file), qty: l.qty }))
+    .filter((l): l is StockLine => !!l.product_id);
   return {
-    customerName: order.customer.name,
-    phone: order.customer.phone,
-    pickupTime: payment,
-    meetupPlace: order.deliveryText,
-    deliveryDate: DELIVERY_DATE_TEXT,
-    size: order.sizeText,
-    charms: order.charmsList,
-    subtotal: order.priced.subtotal.toFixed(2),
-    deliveryFee: order.priced.deliveryFee.toFixed(2),
-    total: order.priced.total.toFixed(2),
+    record: {
+      source: 'builder',
+      status: payment.method === 'ziina' ? 'awaiting_payment' : 'pending',
+      payment_method: payment.method,
+      ziina_payment_id: ziinaPaymentId,
+      customer_name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      address: order.address || undefined,
+      delivery_option: order.deliveryOptionId,
+      delivery_text: order.deliveryText,
+      bracelet_size: order.sizeText,
+      base_color: order.baseColor,
+      items: { charms: order.lines, layout: order.layout },
+      discount_code: order.promoCode || undefined,
+      subtotal_aed: Math.round((priced.subtotal + priced.discount) * 100) / 100,
+      discount_aed: priced.discount,
+      delivery_fee_aed: priced.deliveryFee,
+      total_aed: priced.total,
+      notes: customer.notes || undefined,
+      email_template: 'builder',
+      email_params: braceletEmailParams(order, payment.label),
+    },
+    stockLines,
   };
 }

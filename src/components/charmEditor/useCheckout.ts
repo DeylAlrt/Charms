@@ -199,7 +199,7 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
   };
 
   /** Sends the order to the server; it works out the price, the email and the sheet row from the bracelet itself. */
-  const postOrder = async (url: string): Promise<{ success: boolean; error?: string; redirect_url?: string }> => {
+  const postOrder = async (url: string): Promise<{ success: boolean; error?: string; redirect_url?: string; orderNumber?: number | null }> => {
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -268,7 +268,12 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
         setOrderStatus({ text: data.error || 'Sorry, something went wrong sending your order — please try again.', type: 'error' });
         return;
       }
-      setOrderStatus({ text: "Thank you! 🎉 Your order is sent. We'll message you on WhatsApp soon.", type: 'success' });
+      setOrderStatus({
+        text: data.orderNumber
+          ? `Thank you! 🎉 Your order #${data.orderNumber} is sent. We'll message you on WhatsApp soon.`
+          : "Thank you! 🎉 Your order is sent. We'll message you on WhatsApp soon.",
+        type: 'success',
+      });
       markAsOrdered();
       setPromoLocked(true);
       setAppliedPromo(null);

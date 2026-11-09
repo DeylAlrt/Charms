@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
-import { appendOrderToSheet } from '@/lib/appendOrder';
-import { sendOrderNotificationEmail } from '@/lib/emailNotify';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
-import { braceletEmailParams, braceletSheetRow, readBraceletOrder } from '@/lib/builderOrder';
+import { braceletRecord, readBraceletOrder } from '@/lib/builderOrder';
+import { OutOfStockError, placeOrderNow } from '@/lib/orderStore';
 import { paymentLabel } from '@/components/charmEditor/orderOptions';
 
 /**
- * A charm builder order paid by Cash on Delivery or Bank Transfer: emails the
- * shop and logs it to the Orders sheet. (Ziina orders go through
- * /api/create-payment-intent and are logged once paid.)
+ * A charm builder order paid by Cash on Delivery or Bank Transfer: saved in
+ * Supabase (taking stock), then emailed to the shop. Ziina orders go through
+ * /api/create-payment-intent instead.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +25,6 @@ export async function POST(request: NextRequest) {
     if (body.paymentMethod !== 'cod' && body.paymentMethod !== 'bank') {
       return NextResponse.json({ success: false, error: 'Please choose how you want to pay.' }, { status: 400 });
     }
-    const payment = paymentLabel(body.paymentMethod);
 
     let order;
     try {
@@ -35,18 +33,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: (err as Error).message }, { status: 400 });
     }
 
-    // The email is what tells the shop about the order, so it must go through.
-    await sendOrderNotificationEmail(braceletEmailParams(order, payment), 'builder');
+    const { record, stockLines } = braceletRecord(order, { method: body.paymentMethod, label: paymentLabel(body.paymentMethod) });
+    let orderNumber: number | null;
+    try {
+      ({ orderNumber } = await placeOrderNow(record, stockLines));
+    } catch (err) {
+      if (err instanceof OutOfStockError) return NextResponse.json({ success: false, error: err.message }, { status: 409 });
+      throw err;
+    }
     noteSend(request, 'builder-order');
 
-    // The sheet is a record; the order still counts if it fails.
-    try {
-      await appendOrderToSheet(braceletSheetRow(order, payment));
-    } catch (err) {
-      console.error('Failed to save order to Google Sheets:', err);
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, orderNumber });
   } catch (error) {
     console.error('Error placing builder order:', error);
     return NextResponse.json({ success: false, error: 'Something went wrong sending your order — please try again or DM us on Instagram.' }, { status: 500 });

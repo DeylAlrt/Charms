@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
 import { createPaymentIntent } from '@/lib/ziina';
-import { savePendingPayment } from '@/lib/pendingPayments';
+import { OutOfStockError, saveOrder } from '@/lib/orderStore';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
-import { CORS_HEADERS, readShopOrder, shopEmailParams, shopSheetRow } from '@/lib/shopOrder';
+import { CORS_HEADERS, readShopOrder, shopRecord } from '@/lib/shopOrder';
 
 /**
  * Starts a Ziina payment for the MAIN SITE's cart (navilleracharms.com,
  * Js_Folder/cart.js). The amount and order details are worked out here from
- * SITE_ITEMS; the order is only stashed as "pending", and /api/ziina-webhook
- * logs it and emails the shop once Ziina confirms the payment.
+ * Supabase; the order is saved as 'awaiting_payment', and /api/ziina-webhook
+ * marks it paid and emails the shop once Ziina confirms the payment.
  */
 
 const SITE_ORIGIN = 'https://navilleracharms.com';
-const PAYMENT = 'Paid Online (Ziina)';
+const PAYMENT = { method: 'ziina', label: 'Paid Online (Ziina)' } as const;
 
 /** Return address on the main site, e.g. "/collection.html?category=links" — anything else falls back to the home page. */
 function returnUrl(returnPath: unknown, outcome: 'success' | 'cancel' | 'failed'): string {
@@ -59,12 +59,16 @@ export async function POST(request: NextRequest) {
       failureUrl: returnUrl(body.returnPath, 'failed'),
     });
 
+    const { record, stockLines } = shopRecord(order, PAYMENT, intent.id);
+    try {
+      await saveOrder(record, stockLines, false);
+    } catch (err) {
+      if (err instanceof OutOfStockError) return fail(err.message, 409);
+      // Without the saved order, a payment couldn't be matched to it — so don't send the customer to pay.
+      console.error('Could not save the Ziina order in Supabase:', err);
+      return fail('Online payment is unavailable right now — please choose Cash on Delivery or Bank Transfer.', 503);
+    }
     noteSend(request, 'shop-order');
-    await savePendingPayment(intent.id, {
-      emailTemplate: 'site',
-      emailParams: shopEmailParams(order, PAYMENT),
-      sheetOrderData: shopSheetRow(order, PAYMENT),
-    });
 
     return NextResponse.json({ success: true, redirect_url: intent.redirect_url, total: order.total }, { headers });
   } catch (error) {

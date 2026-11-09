@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadLiveProducts } from '@/lib/products';
 import { checkSpam, noteSend } from '@/lib/antiSpam';
+import { publicOrigin } from '@/lib/siteUrls';
 import { braceletRecord, readBraceletOrder } from '@/lib/builderOrder';
 import { OutOfStockError, placeOrderNow } from '@/lib/orderStore';
 import { paymentLabel } from '@/components/charmEditor/orderOptions';
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     let order;
     try {
-      order = readBraceletOrder(body, request.nextUrl.origin);
+      order = readBraceletOrder(body, publicOrigin(request));
     } catch (err) {
       return NextResponse.json({ success: false, error: (err as Error).message }, { status: 400 });
     }

@@ -12,13 +12,13 @@ import { applyBuilderProducts, type ProductRow } from './liveProducts';
 
 type Props = {
   charmFiles: string[];
-  /** The products from Supabase, or null to use the built-in lists. */
-  products: ProductRow[] | null;
+  /** The products from Supabase (or the backup copy). */
+  products: ProductRow[];
 };
 
 export default function CharmEditorClient({ charmFiles, products }: Props) {
-  // Before anything reads the charm list: switch it to the products from Supabase.
-  if (products) applyBuilderProducts(products);
+  // Before anything reads the charm list: fill it with the products.
+  applyBuilderProducts(products);
 
   const bracelet = useBracelet();
   const checkout = useCheckout({

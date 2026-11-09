@@ -1,13 +1,14 @@
 import { applyBuilderProducts, isRowSoldOut, productFile, type ProductRow } from '@/components/liveProducts';
 import { setSiteItems } from './siteCatalogue';
+import backup from '@/data/products-backup.json';
 
 /**
  * Reads the products from Supabase (server only).
  *
  * Kept for up to a minute, so a change saved in the Supabase dashboard shows
  * on the sites within about a minute without slowing every page down. If
- * Supabase can't be reached, the built-in lists are used instead, so the
- * builder never breaks.
+ * Supabase can't be reached, the daily backup copy (src/data/products-backup.json,
+ * made by scripts/backup-products.mjs) is used instead, so the sites never break.
  */
 
 // Public on purpose: the publishable key only allows reading active products.
@@ -31,7 +32,7 @@ export async function fetchProducts(): Promise<ProductRow[] | null> {
     if (!Array.isArray(rows) || rows.length === 0) throw new Error('No products came back');
     return rows as ProductRow[];
   } catch (err) {
-    console.error('Could not load products from Supabase — using the built-in lists:', err);
+    console.error('Could not load products from Supabase — using the backup copy:', err);
     return null;
   }
 }
@@ -43,10 +44,14 @@ let idBySiteKey = new Map<string, string>();
 export const productIdForBuilderFile = (file: string) => idByBuilderFile.get(file);
 export const productIdForSiteKey = (key: string) => idBySiteKey.get(key);
 
+/** The products: from Supabase, or the backup copy if Supabase can't be reached. */
+export async function getProducts(): Promise<ProductRow[]> {
+  return (await fetchProducts()) ?? (backup.products as ProductRow[]);
+}
+
 /** Loads the products and switches the order checks (builder and main site) to them. Call before pricing an order. */
 export async function loadLiveProducts(): Promise<void> {
-  const rows = await fetchProducts();
-  if (!rows) return;
+  const rows = await getProducts();
   applyBuilderProducts(rows);
   idByBuilderFile = new Map(rows.filter(r => r.id && r.builder_category).map(r => [productFile(r), r.id!]));
   idBySiteKey = new Map(rows.filter(r => r.id).map(r => [`${r.section}::${productFile(r)}`, r.id!]));

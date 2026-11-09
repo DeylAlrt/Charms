@@ -7,7 +7,7 @@ import { productIdForSiteKey } from './products';
 
 /**
  * A main site cart order (navilleracharms.com, Js_Folder/cart.js),
- * priced and described on the server from SITE_ITEMS — the browser's
+ * priced and described on the server from the products in Supabase — the browser's
  * prices, totals and item names are never used.
  */
 

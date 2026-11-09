@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import CharmEditorClient from "../components/CharmEditorClient";
-import { fetchProducts } from "../lib/products";
+import { getProducts } from "../lib/products";
 
 export const revalidate = 0;
 
@@ -32,9 +32,9 @@ export default async function Page() {
     charmFiles = [];
   }
 
-  // Prices, sold out and hidden charms from Supabase (null = use the built-in lists).
+  // Prices, sold out and hidden charms from Supabase (or the backup copy).
   // Only what the builder sells is sent to the browser.
-  const products = (await fetchProducts())?.filter(p => p.builder_category).map(p => ({ ...p, id: undefined })) ?? null;
+  const products = (await getProducts()).filter(p => p.builder_category).map(p => ({ ...p, id: undefined }));
 
   return <CharmEditorClient charmFiles={charmFiles} products={products} />;
 }

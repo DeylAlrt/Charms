@@ -1,11 +1,11 @@
-import { BUILT_IN_ENTRIES, setCatalogueEntries, type CatalogueEntry } from './charmCatalogue';
-import { BUILT_IN_WATCHES, setWatches, type Watch } from './charmEditor/watches';
+import { setCatalogueEntries, type CatalogueEntry } from './charmCatalogue';
+import { setWatches, type Watch } from './charmEditor/watches';
 
 /**
  * Products from the Supabase `products` table (only the active ones — hidden
- * products never leave Supabase). The builder uses these instead of its
- * built-in lists, so prices, sold out and hiding are changed in the Supabase
- * dashboard without touching the code.
+ * products never leave Supabase), or the daily backup copy of them
+ * (src/data/products-backup.json) if Supabase can't be reached. Prices, sold
+ * out and hiding are changed in the Supabase dashboard, not in the code.
  */
 export type ProductRow = {
   /** Only on the server (not sent to the browser). */
@@ -29,24 +29,52 @@ export const productFile = (row: ProductRow) => (row.image_path ?? row.image_url
 
 export const isRowSoldOut = (row: ProductRow) => row.sold_out || row.stock === 0;
 
-/**
- * Display order: everything the builder already had stays where it was (so the
- * builder looks the same), and a product added in Supabase goes after the
- * others in its category.
- */
-function orderLike<T>(items: T[], builtInOrder: Map<string, number>, key: (t: T) => string, group: (t: T) => string, sortOrder: (t: T) => number): T[] {
-  const lastInGroup = new Map<string, number>();
-  for (const item of items) {
-    const at = builtInOrder.get(key(item));
-    if (at !== undefined) lastInGroup.set(group(item), Math.max(lastInGroup.get(group(item)) ?? -1, at));
-  }
-  const position = (item: T) =>
-    builtInOrder.get(key(item)) ?? (lastInGroup.get(group(item)) ?? builtInOrder.size) + 0.5 + sortOrder(item) / 1e6;
-  return [...items].sort((a, b) => position(a) - position(b));
-}
+// ---------------------------------------------------------------------------
+// How the builder orders its charms. Edit these to change the order.
+// ---------------------------------------------------------------------------
 
-const builtInEntryOrder = new Map(BUILT_IN_ENTRIES.map((entry, i) => [entry.file, i]));
-const builtInWatchOrder = new Map(BUILT_IN_WATCHES.map((watch, i) => [watch.file, i]));
+/** The builder's categories, left to right. A new category (not listed) goes at the end. */
+export const BUILDER_CATEGORY_ORDER = [
+  'Plain Charms', 'Concave Links', 'Letter Links', 'Number Links', 'Gold Outline Links', 'Colored Links',
+  'Flags', 'Characters', 'Animals', 'Cars', 'Sports', 'Premium Charms', 'Magnet Hearts', 'Dangling Links',
+  'Twin Chain Links',
+];
+
+/** Categories whose charms are listed A–Z. The others follow each product's sort_order. */
+export const ALPHABETICAL_CATEGORIES = new Set([
+  'Plain Charms', 'Concave Links', 'Gold Outline Links', 'Colored Links', 'Flags', 'Animals', 'Cars', 'Sports', 'Dangling Links',
+]);
+
+/**
+ * A section's "gold set": e.g. "Gold Premium Charms" inside the Premium Charms
+ * category (listed after the silver ones, named "Gold …"). An all-gold category
+ * like Gold Outline Links isn't one.
+ */
+const isGoldSet = (r: ProductRow) => r.section.startsWith('Gold ') && r.section !== r.builder_category;
+
+const categoryRank = (category: string) => {
+  const i = BUILDER_CATEGORY_ORDER.indexOf(category);
+  return i < 0 ? BUILDER_CATEGORY_ORDER.length : i;
+};
+
+/**
+ * Builder display order: by category (above), then silver sections before gold
+ * sets, cheaper sections first, then A–Z or sort_order within a section.
+ */
+function builderOrder(rows: ProductRow[], availableFirst = false): ProductRow[] {
+  const sectionPrice = new Map<string, number>();
+  for (const r of rows) sectionPrice.set(r.section, Math.min(sectionPrice.get(r.section) ?? Infinity, Number(r.price_aed)));
+  const alphabetical = (r: ProductRow) => ALPHABETICAL_CATEGORIES.has(r.builder_category!);
+  return [...rows].sort((a, b) =>
+    categoryRank(a.builder_category!) - categoryRank(b.builder_category!)
+    || a.builder_category!.localeCompare(b.builder_category!)
+    || Number(isGoldSet(a)) - Number(isGoldSet(b))
+    || sectionPrice.get(a.section)! - sectionPrice.get(b.section)!
+    || a.section.localeCompare(b.section)
+    || (availableFirst ? Number(isRowSoldOut(a)) - Number(isRowSoldOut(b)) : 0)
+    || (alphabetical(a) ? a.name.localeCompare(b.name) : 0)
+    || a.sort_order - b.sort_order);
+}
 
 let applied: ProductRow[] | null = null;
 
@@ -55,23 +83,18 @@ export function applyBuilderProducts(rows: ProductRow[]) {
   if (rows === applied) return;
   applied = rows;
 
-  const charms = rows.filter(r => r.builder_category && r.kind !== 'watch');
-  const entries: CatalogueEntry[] = orderLike(charms, builtInEntryOrder, productFile, r => r.builder_category!, r => r.sort_order)
-    .map(r => {
-      // "Gold Star" in a section's gold set (e.g. "Gold Premium Charms" under Premium Charms),
-      // but not in an all-gold category like Gold Outline Links
-      const goldSet = r.section.startsWith('Gold ') && r.section !== r.builder_category;
-      return {
-        file: productFile(r),
-        displayName: goldSet && !/gold/i.test(r.name) ? `Gold ${r.name}` : r.name,
-        category: r.builder_category!,
-        price: Number(r.price_aed),
-        soldOut: isRowSoldOut(r),
-      };
-    });
+  const entries: CatalogueEntry[] = builderOrder(rows.filter(r => r.builder_category && r.kind !== 'watch'))
+    .map(r => ({
+      file: productFile(r),
+      displayName: isGoldSet(r) && !/gold/i.test(r.name) ? `Gold ${r.name}` : r.name,
+      category: r.builder_category!,
+      price: Number(r.price_aed),
+      soldOut: isRowSoldOut(r),
+    }));
   setCatalogueEntries(entries);
 
-  const watches: Watch[] = orderLike(rows.filter(r => r.builder_category && r.kind === 'watch'), builtInWatchOrder, productFile, () => '', r => r.sort_order)
+  // Watches: the ones you can buy first
+  const watches: Watch[] = builderOrder(rows.filter(r => r.builder_category && r.kind === 'watch'), true)
     .map(r => ({
       name: r.name,
       file: productFile(r),

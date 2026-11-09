@@ -35,7 +35,7 @@ export const isWebLink = (filename: string) => /^https?:\/\//i.test(filename);
 export const charmImageUrl = (filename: string): string =>
   isWebLink(filename) ? filename : `/charms/${filename.split("/").map(encodeURIComponent).join("/")}`;
 
-/** Sold out = marked in the main site's catalogue (soldOut: [...] in catalogue-data.js). */
+/** Sold out = ticked (or stock 0) in Supabase. */
 export const isCharmSoldOut = (filename: string): boolean =>
   !!getCatalogueEntry(filename)?.soldOut || filename.toLowerCase().includes("sold");
 

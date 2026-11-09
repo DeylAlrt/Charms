@@ -3,19 +3,12 @@ import data from './stripImages.json';
 
 export type Watch = { name: string; file: string; price: number; soldOut?: boolean; links: 'Silver' | 'Gold' };
 
-/** The built-in list, used until the products from Supabase arrive (see liveProducts.ts). */
-export const BUILT_IN_WATCHES: Watch[] = [
-  { name: 'Heart Watch', file: 'Watches/Heart Watch.png', price: 55.50, links: 'Silver' },
-  { name: 'Rose Gold Digital Watch', file: 'Watches/Rose Gold Digital Watch.png', price: 55.50, links: 'Silver' },
-  { name: 'White Square Watch', file: 'Watches/White Square Watch.png', price: 55.50, soldOut: true, links: 'Silver' },
-  { name: 'Oval Gold Watch', file: 'Watches/Oval Gold Watch.png', price: 65.50, links: 'Gold' },
-];
-
 export const WATCH_LINKS = 6;
 
 export const WATCH_FACE_LINKS = 2.9;
 
-let watches: Watch[] = BUILT_IN_WATCHES;
+// From the Supabase products (or the backup copy) — see liveProducts.ts.
+let watches: Watch[] = [];
 
 /** The watches on offer, in display order. */
 export const getWatches = (): Watch[] => watches;

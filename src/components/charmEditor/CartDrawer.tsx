@@ -6,6 +6,7 @@ import type { useCheckout } from './useCheckout';
 import { DELIVERY_METHODS, DELIVERY_OPTIONS, PAYMENT_OPTIONS, formatFee } from './orderOptions';
 import { thumbUrl } from './stripImages';
 import HumanCheck, { HoneypotField } from './HumanCheck';
+import Icon, { type IconName } from './Icon';
 
 // 16px+ text on form fields keeps iOS Safari from zooming in when they're tapped.
 const LABEL = 'flex flex-col gap-1.5 text-base font-semibold text-gray-700';
@@ -23,7 +24,7 @@ function StepHeading({ number, title }: { number: number; title: string }) {
 type OptionCardProps = {
   selected: boolean;
   onClick?: () => void;
-  icon?: string;
+  icon?: IconName;
   title: string;
   detail: string;
   price?: string;
@@ -43,7 +44,11 @@ function OptionCard({ selected, onClick, icon, title, detail, price, disabled }:
         selected ? 'border-navy bg-sky-tint-light' : 'border-sky-tint bg-white hover:border-pastel-blue'
       }`}
     >
-      {icon && <span className="text-2xl flex-shrink-0" aria-hidden>{icon}</span>}
+      {icon && (
+        <span className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center ${selected ? 'bg-white text-navy' : 'bg-sky-tint-light text-navy'}`}>
+          <Icon name={icon} className="w-6 h-6" />
+        </span>
+      )}
       <span className="flex-1 min-w-0 flex flex-col">
         <span className="font-bold text-navy text-base">{title}</span>
         <span className="text-sm text-muted">{detail}</span>
@@ -51,9 +56,9 @@ function OptionCard({ selected, onClick, icon, title, detail, price, disabled }:
       {price && <span className={`flex-shrink-0 font-bold text-base ${price === 'FREE' ? 'text-success' : 'text-navy'}`}>{price}</span>}
       <span
         aria-hidden
-        className={`w-6 h-6 flex-shrink-0 rounded-full border-2 flex items-center justify-center text-sm ${selected ? 'bg-navy border-navy text-white' : 'border-sky-tint'}`}
+        className={`w-6 h-6 flex-shrink-0 rounded-full border-2 flex items-center justify-center ${selected ? 'bg-navy border-navy text-white' : 'border-sky-tint'}`}
       >
-        {selected ? '✓' : ''}
+        {selected && <Icon name="check" className="w-3.5 h-3.5" strokeWidth={3} />}
       </span>
     </button>
   );
@@ -226,7 +231,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
           </>
         ) : (
           <form onSubmit={checkout.handleFormSubmit} noValidate className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-6 flex flex-col gap-5">
-            <p className="text-navy text-base">Just 3 easy steps ✨</p>
+            <p className="flex items-center gap-1.5 text-navy text-base">Just 3 easy steps <Icon name="sparkles" className="w-4 h-4 text-accent-blue" /></p>
 
             <section className="flex flex-col gap-3.5">
               <StepHeading number={1} title="Your details" />
@@ -249,7 +254,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                   className={INPUT}
                   required
                 />
-                <span className="font-normal text-muted text-sm">We&apos;ll message you on WhatsApp 💬</span>
+                <span className="flex items-center gap-1.5 font-normal text-muted text-sm">We&apos;ll message you on WhatsApp <Icon name="message" className="w-4 h-4" /></span>
               </label>
               <label className={LABEL}>
                 Your name
@@ -271,7 +276,7 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
                     price={m.price}
                   />
                 ))}
-                <OptionCard selected={false} disabled icon="✈️" title="International shipping" detail="Coming soon" />
+                <OptionCard selected={false} disabled icon="plane" title="International shipping" detail="Coming soon" />
               </div>
 
               {checkout.form.deliveryMethod === 'metro' && (
@@ -322,8 +327,9 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
               <textarea value={checkout.form.notes} onChange={e => checkout.form.setNotes(e.target.value)} placeholder="e.g. a gift message" rows={2} className={`${INPUT} py-3 resize-none`} />
             </label>
 
-            <p className="rounded-2xl bg-sky-tint-light text-navy text-base px-4 py-3">
-              📱 <strong>Note:</strong> Further details will be sent to your WhatsApp number.
+            <p className="flex items-start gap-2.5 rounded-2xl bg-sky-tint-light text-navy text-base px-4 py-3">
+              <Icon name="phone" className="w-5 h-5 mt-0.5" />
+              <span><strong>Note:</strong> Further details will be sent to your WhatsApp number.</span>
             </p>
 
             <div className="border-t border-navy/10 pt-3.5">
@@ -352,8 +358,9 @@ export default function CartDrawer({ checkout, bracelet, subtotal, onDecrement, 
             <HumanCheck onToken={checkout.spamGuard.setHumanToken} resetKey={checkout.spamGuard.humanCheckKey} />
 
             {checkout.orderStatus && (
-              <p role="status" className={`text-base font-semibold text-center ${checkout.orderStatus.type === 'success' ? 'text-success' : 'text-danger'}`}>
-                {checkout.orderStatus.text}
+              <p role="status" className={`flex items-start justify-center gap-2 text-base font-semibold text-center ${checkout.orderStatus.type === 'success' ? 'text-success' : 'text-danger'}`}>
+                <Icon name={checkout.orderStatus.type === 'success' ? 'success' : 'alert'} className="w-5 h-5 mt-0.5" />
+                <span>{checkout.orderStatus.text}</span>
               </p>
             )}
 

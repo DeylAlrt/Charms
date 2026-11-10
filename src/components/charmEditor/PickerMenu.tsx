@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import Icon from './Icon';
 
 export type PickerOption<T extends string> = {
   value: T;
@@ -111,9 +112,9 @@ export default function PickerMenu<T extends string>({ label, value, options, on
                 </span>
                 <span
                   aria-hidden
-                  className={`w-5 h-5 flex-shrink-0 rounded-full border-2 flex items-center justify-center text-[10px] ${selected ? 'bg-navy border-navy text-white' : 'border-sky-tint'}`}
+                  className={`w-5 h-5 flex-shrink-0 rounded-full border-2 flex items-center justify-center ${selected ? 'bg-navy border-navy text-white' : 'border-sky-tint'}`}
                 >
-                  {selected ? '✓' : ''}
+                  {selected && <Icon name="check" className="w-3 h-3" strokeWidth={3} />}
                 </span>
               </button>
             );

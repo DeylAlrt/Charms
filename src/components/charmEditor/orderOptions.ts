@@ -2,6 +2,7 @@
  * Delivery and payment choices for the order form. Kept in sync with the
  * main site's cart (navilleracharms.com → Js_Folder/cart.js).
  */
+import type { IconName } from './Icon';
 
 export type DeliveryMethod = 'pickup' | 'metro' | 'home';
 
@@ -25,10 +26,10 @@ export const DELIVERY_OPTIONS: DeliveryOption[] = [
   { id: 'home', method: 'home', title: 'Home delivery', detail: 'Anywhere in the UAE (Jeebly)', fee: 20, needsAddress: true },
 ];
 
-export const DELIVERY_METHODS: { method: DeliveryMethod; icon: string; title: string; detail: string; price: string }[] = [
-  { method: 'pickup', icon: '🛍️', title: 'Pick up', detail: 'Barsha Heights (Tecom)', price: 'FREE' },
-  { method: 'metro', icon: '🚇', title: 'Metro meet-up', detail: 'We meet you at a metro station', price: 'FREE – 9 AED' },
-  { method: 'home', icon: '🏠', title: 'Home delivery', detail: 'Anywhere in the UAE (Jeebly)', price: '20 AED' },
+export const DELIVERY_METHODS: { method: DeliveryMethod; icon: IconName; title: string; detail: string; price: string }[] = [
+  { method: 'pickup', icon: 'bag', title: 'Pick up', detail: 'Barsha Heights (Tecom)', price: 'FREE' },
+  { method: 'metro', icon: 'metro', title: 'Metro meet-up', detail: 'We meet you at a metro station', price: 'FREE – 9 AED' },
+  { method: 'home', icon: 'home', title: 'Home delivery', detail: 'Anywhere in the UAE (Jeebly)', price: '20 AED' },
 ];
 
 export const getDeliveryOption = (id: string): DeliveryOption | undefined =>
@@ -47,10 +48,10 @@ export const describeDelivery = (option: DeliveryOption, address: string): strin
 
 export type PaymentMethod = 'ziina' | 'cod' | 'bank';
 
-export const PAYMENT_OPTIONS: { id: PaymentMethod; icon: string; title: string; detail: string }[] = [
-  { id: 'ziina', icon: '💳', title: 'Pay online now (Ziina)', detail: "You'll be redirected to Ziina to pay securely (card, Apple Pay or Google Pay)" },
-  { id: 'cod', icon: '💵', title: 'Cash on Delivery', detail: 'Pay in cash when you get your order' },
-  { id: 'bank', icon: '🏦', title: 'Bank Transfer', detail: "We'll send our bank details on WhatsApp" },
+export const PAYMENT_OPTIONS: { id: PaymentMethod; icon: IconName; title: string; detail: string }[] = [
+  { id: 'ziina', icon: 'card', title: 'Pay online now (Ziina)', detail: "You'll be redirected to Ziina to pay securely (card, Apple Pay or Google Pay)" },
+  { id: 'cod', icon: 'cash', title: 'Cash on Delivery', detail: 'Pay in cash when you get your order' },
+  { id: 'bank', icon: 'bank', title: 'Bank Transfer', detail: "We'll send our bank details on WhatsApp" },
 ];
 
 export const paymentLabel = (id: PaymentMethod) => PAYMENT_OPTIONS.find(option => option.id === id)!.title;

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { charmImageUrl, type Charm } from '../charmEditorUtils';
 import { attachedLinkFile, isWatchPart } from './watches';
+import Icon from './Icon';
 import { StripCharmPicture, TwinChainLayer, WatchLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry, watchCoveredSpots, watchOverhang } from './StripLinks';
 
 type FullDesignModalProps = {
@@ -106,9 +107,12 @@ export default function FullDesignModal({ open, onClose, bracelet, maxSlots, fil
             {filled} of {charmSpots} charms added
           </p>
 
-          <div className="mt-4 bg-cream/60 rounded-xl px-4 py-3 text-xs sm:text-sm text-navy leading-relaxed">
-            <strong>📸 Reminder:</strong> Any spot you haven&apos;t filled is a plain link in your chosen
-            colour. Check your design before ordering — this is how your bracelet will be made.
+          <div className="mt-4 flex items-start gap-2.5 bg-cream/60 rounded-xl px-4 py-3 text-xs sm:text-sm text-navy leading-relaxed">
+            <Icon name="camera" className="w-5 h-5" />
+            <p>
+              <strong>Reminder:</strong> Any spot you haven&apos;t filled is a plain link in your chosen
+              colour. Check your design before ordering — this is how your bracelet will be made.
+            </p>
           </div>
         </div>
       </div>

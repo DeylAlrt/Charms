@@ -269,8 +269,8 @@ export function useCheckout({ bracelet, maxSlots, selectedBaseColor, subtotal }:
       }
       setOrderStatus({
         text: data.orderNumber
-          ? `Thank you! 🎉 Your order #${data.orderNumber} is sent. We'll message you on WhatsApp soon.`
-          : "Thank you! 🎉 Your order is sent. We'll message you on WhatsApp soon.",
+          ? `Thank you! Your order #${data.orderNumber} is sent. We'll message you on WhatsApp soon.`
+          : "Thank you! Your order is sent. We'll message you on WhatsApp soon.",
         type: 'success',
       });
       setAppliedPromo(null);

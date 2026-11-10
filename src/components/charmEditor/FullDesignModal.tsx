@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { charmImageUrl, type Charm } from '../charmEditorUtils';
 import { attachedLinkFile, isWatchPart } from './watches';
+import Bracelet3D from './bracelet3d/Bracelet3D';
 import Icon from './Icon';
+import { supportsWebGL } from './bracelet3d/renderer';
 import { StripCharmPicture, TwinChainLayer, WatchLayer, hangRoom, meetingSides, mirroredSpots, spotVar, useSpotGeometry, watchCoveredSpots, watchOverhang } from './StripLinks';
 
 type FullDesignModalProps = {
@@ -49,10 +51,32 @@ function BraceletRow({ slots }: { slots: Charm[] }) {
 }
 
 /**
+ * Whether to offer the 3D view: only where the browser can draw 3D (WebGL), and not on
+ * low-powered phones (few processor cores or little memory, where it would stutter).
+ */
+function useCan3d() {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const cores = nav.hardwareConcurrency ?? 8;
+    const memory = nav.deviceMemory ?? 8; // GB; only some browsers report it
+    setOk(cores >= 3 && memory >= 3 && supportsWebGL());
+  }, []);
+  return ok;
+}
+
+/**
  * Shows the whole bracelet in one row, every link side by side like the real
  * thing, so customers can see (and screenshot) their full design at once.
  */
 export default function FullDesignModal({ open, onClose, bracelet, maxSlots, filled, charmSpots }: FullDesignModalProps) {
+  // ✏️ Which view opens first: '2d' (one row, exactly how it's made) or '3d' (beta)
+  const [view, setView] = useState<'2d' | '3d'>('2d');
+  const [failed3d, setFailed3d] = useState(false);
+  const can3d = useCan3d() && !failed3d;
+  const show3d = view === '3d' && can3d;
+  // Same list while the bracelet is unchanged, so the 3D view isn't rebuilt on every render
+  const slots = useMemo(() => Array.from({ length: maxSlots }, (_, i) => bracelet[i]), [bracelet, maxSlots]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -61,8 +85,6 @@ export default function FullDesignModal({ open, onClose, bracelet, maxSlots, fil
   }, [open, onClose]);
 
   if (!open) return null;
-
-  const slots = Array.from({ length: maxSlots }, (_, i) => bracelet[i]);
 
   return (
     <div
@@ -80,6 +102,19 @@ export default function FullDesignModal({ open, onClose, bracelet, maxSlots, fil
           <h2 id="full-design-title" className="font-serif italic font-bold text-xl sm:text-2xl text-navy">
             Your Full Design
           </h2>
+          {can3d && <div className="ml-auto mr-2 inline-flex p-[3px] rounded-full bg-sky-tint-light border border-sky-tint" role="group" aria-label="View">
+            {(['2d', '3d'] as const).map(v => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${view === v ? 'bg-navy text-white' : 'text-navy'}`}
+              >
+                {v === '3d' ? <>3D <span className="text-[10px] uppercase tracking-wide opacity-70 font-medium">Beta</span></> : '2D'}
+              </button>
+            ))}
+          </div>}
           <button
             type="button"
             onClick={onClose}
@@ -94,14 +129,22 @@ export default function FullDesignModal({ open, onClose, bracelet, maxSlots, fil
 
         <div className="px-4 sm:px-6 py-5">
           <p className="text-center text-xs sm:text-sm text-muted mb-3">
-            You can take a screenshot for your own reference.
+            {show3d
+              ? '3D preview (beta). Drag to turn, pinch to zoom, tap to pause. Use 2D to check exactly how your bracelet will be made.'
+              : 'You can take a screenshot for your own reference.'}
           </p>
 
           {/* The bracelet: every link the same width, touching, in one row,
               with dangles and twin chains hanging below */}
-          <div className="bg-sky-tint-light border border-sky-tint rounded-xl px-2 sm:px-4 py-6 sm:py-8">
-            <BraceletRow slots={slots} />
-          </div>
+          {show3d ? (
+            <div className="rounded-xl border border-sky-tint overflow-hidden" style={{ background: 'radial-gradient(130% 100% at 50% 0%, #fbfcfe 0%, #dfe7f1 100%)' }}>
+              <Bracelet3D slots={slots} onUnavailable={() => { setFailed3d(true); setView('2d'); }} />
+            </div>
+          ) : (
+            <div className="bg-sky-tint-light border border-sky-tint rounded-xl px-2 sm:px-4 py-6 sm:py-8">
+              <BraceletRow slots={slots} />
+            </div>
+          )}
 
           <p className="text-center text-xs sm:text-sm font-semibold text-navy mt-3">
             {filled} of {charmSpots} charms added

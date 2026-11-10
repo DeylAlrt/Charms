@@ -365,14 +365,14 @@ const LINK_ASPECT = 0.93;
 /** Where the middle of the link row is, as a share of a spot's width from its top. */
 const LINK_MIDDLE = LINK_TOP + (LINK_FILL * LINK_ASPECT) / 2;
 /** How far the watch face reaches over the links either side, in spot widths, so its lugs look attached. */
-const LUG_OVERLAP = 0.08;
+export const LUG_OVERLAP = 0.08;
 
 /**
  * The watch on the bracelet: which spots it covers, its sideways photo, and
  * the scale its face is drawn at (spot widths per photo pixel): the face, with
  * its lugs, spans WATCH_FACE_LINKS spots exactly.
  */
-function watchLayout(bracelet: Charm[]) {
+export function watchLayout(bracelet: Charm[]) {
   const start = bracelet.findIndex(item => item?.watchPart === 0);
   if (start < 0) return null;
   const pic = watchPicture(bracelet[start].filename);

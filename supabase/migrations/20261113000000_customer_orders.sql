@@ -1,14 +1,3 @@
--- Navillera: customers see and cancel their own orders.
--- Run once in the Supabase dashboard → SQL Editor → New query → paste → Run (after discount_codes).
---
--- Customers reach their orders two ways:
---   - signed in on navillera.vercel.app/account (email + one-time code): every order with their email
---   - the private "Manage my order" link in each order email: that one order
--- Cancelling online: only Cash on Delivery orders that are still 'pending' (nothing has been paid).
--- Paid online (Ziina) and Bank Transfer orders can't be cancelled on the site — customers are
--- asked to message the shop on Instagram or WhatsApp about cancelling or a refund.
--- Set an order to 'preparing' when you start making it.
-
 
 -- New status: preparing (you've started making it)
 alter table public.orders drop constraint orders_status_check;

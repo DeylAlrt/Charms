@@ -3,16 +3,17 @@
 import { useRef, useState } from 'react';
 
 /**
- * The sign-in code as six boxes. Underneath is one real (invisible) input, so
+ * The sign-in code as one box per digit. Underneath is one real (invisible) input, so
  * pasting the whole code, the phone's "From Mail" suggestion and backspace all
  * just work; the boxes only show the digits.
  */
-export default function CodeBoxes({ value, onChange, onComplete, length = 6, disabled }: {
+export default function CodeBoxes({ value, onChange, onComplete, length, disabled }: {
   value: string;
   onChange: (code: string) => void;
   /** Called once every box is filled. */
   onComplete?: (code: string) => void;
-  length?: number;
+  /** How many digits the code has (Supabase → Authentication → Email OTP length). */
+  length: number;
   disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -26,13 +27,13 @@ export default function CodeBoxes({ value, onChange, onComplete, length = 6, dis
 
   return (
     <div className="relative" onClick={() => inputRef.current?.focus()}>
-      <div className="grid grid-cols-6 gap-2 sm:gap-3" aria-hidden="true">
+      <div className={`grid ${length > 6 ? 'gap-1.5 sm:gap-2.5' : 'gap-2 sm:gap-3'}`} style={{ gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))` }} aria-hidden="true">
         {Array.from({ length }, (_, i) => {
           const active = focused && (i === value.length || (i === length - 1 && value.length === length));
           return (
             <div
               key={i}
-              className={`aspect-[4/5] max-h-16 rounded-xl border-2 flex items-center justify-center text-2xl sm:text-3xl font-bold text-navy bg-white transition-colors ${
+              className={`aspect-[4/5] max-h-16 rounded-xl border-2 flex items-center justify-center ${length > 6 ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-bold text-navy bg-white transition-colors ${
                 active ? 'border-accent-blue shadow-[0_0_0_3px_rgba(45,121,186,0.18)]' : value[i] ? 'border-navy' : 'border-navy/25'
               }`}
             >

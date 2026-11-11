@@ -8,6 +8,9 @@ import CodeBoxes from './CodeBoxes';
 
 type Step = 'loading' | 'email' | 'code' | 'orders';
 
+/** Digits in the sign-in code — must match Supabase → Authentication → Sign In / Providers → Email → Email OTP Length. */
+const CODE_LENGTH = 8;
+
 const INPUT = 'min-h-[52px] px-4 border-2 border-navy rounded-xl text-base text-navy outline-none focus:border-accent-blue bg-white';
 const PRIMARY = 'lift min-h-[52px] px-6 rounded-full bg-navy text-white text-lg font-bold hover:bg-pastel-blue hover:text-navy disabled:opacity-70';
 
@@ -58,9 +61,9 @@ export default function AccountClient() {
     setMessage({ text: `We sent a code to ${email.trim()}. It can take a minute — check your spam folder too.`, type: 'info' });
   };
 
-  /** Checks the code — runs by itself once all six boxes are filled. */
+  /** Checks the code — runs by itself once every box is filled. */
   const checkCode = async (value: string = code) => {
-    if (busy || value.length < 6) return;
+    if (busy || value.length < CODE_LENGTH) return;
     setBusy(true);
     setMessage(null);
     const data = await post('/api/account/verify', { email, code: value });
@@ -132,8 +135,8 @@ export default function AccountClient() {
         {step === 'code' && (
           <form onSubmit={e => { e.preventDefault(); checkCode(); }} noValidate className="rounded-3xl bg-white shadow-[0_6px_24px_rgba(15,42,79,0.08)] p-6 flex flex-col gap-4">
             <p className="font-semibold text-navy">Code from the email</p>
-            <CodeBoxes value={code} onChange={setCode} onComplete={checkCode} disabled={busy} />
-            <button type="submit" disabled={busy || code.length < 6} className={PRIMARY}>{busy ? 'Checking…' : 'Sign in'}</button>
+            <CodeBoxes length={CODE_LENGTH} value={code} onChange={setCode} onComplete={checkCode} disabled={busy} />
+            <button type="submit" disabled={busy || code.length < CODE_LENGTH} className={PRIMARY}>{busy ? 'Checking…' : 'Sign in'}</button>
             <button type="button" onClick={() => { setStep('email'); setMessage(null); }} className="text-sm text-muted underline underline-offset-2 hover:text-navy self-center">
               Use a different email or send a new code
             </button>

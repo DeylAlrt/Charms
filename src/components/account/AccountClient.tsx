@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import SiteHeader from '../SiteHeader';
 import OrderCard, { ContactUs, type CustomerOrder } from './OrderCard';
+import CodeBoxes from './CodeBoxes';
 
 type Step = 'loading' | 'email' | 'code' | 'orders';
 
@@ -57,13 +58,18 @@ export default function AccountClient() {
     setMessage({ text: `We sent a code to ${email.trim()}. It can take a minute — check your spam folder too.`, type: 'info' });
   };
 
-  const checkCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
+  /** Checks the code — runs by itself once all six boxes are filled. */
+  const checkCode = async (value: string = code) => {
+    if (busy || value.length < 6) return;
     setBusy(true);
     setMessage(null);
-    const data = await post('/api/account/verify', { email, code });
-    if (!data.success) { setBusy(false); setMessage({ text: data.error || 'That code did not work.', type: 'error' }); return; }
+    const data = await post('/api/account/verify', { email, code: value });
+    if (!data.success) {
+      setBusy(false);
+      setCode('');   // empty boxes, ready to type again
+      setMessage({ text: data.error || 'That code did not work.', type: 'error' });
+      return;
+    }
     await loadOrders();
     setBusy(false);
   };
@@ -124,19 +130,9 @@ export default function AccountClient() {
         )}
 
         {step === 'code' && (
-          <form onSubmit={checkCode} noValidate className="rounded-3xl bg-white shadow-[0_6px_24px_rgba(15,42,79,0.08)] p-6 flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5 font-semibold text-navy">
-              Code from the email
-              <input
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={code}
-                onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="123456"
-                className={`${INPUT} text-2xl tracking-[0.3em] text-center`}
-                autoFocus
-              />
-            </label>
+          <form onSubmit={e => { e.preventDefault(); checkCode(); }} noValidate className="rounded-3xl bg-white shadow-[0_6px_24px_rgba(15,42,79,0.08)] p-6 flex flex-col gap-4">
+            <p className="font-semibold text-navy">Code from the email</p>
+            <CodeBoxes value={code} onChange={setCode} onComplete={checkCode} disabled={busy} />
             <button type="submit" disabled={busy || code.length < 6} className={PRIMARY}>{busy ? 'Checking…' : 'Sign in'}</button>
             <button type="button" onClick={() => { setStep('email'); setMessage(null); }} className="text-sm text-muted underline underline-offset-2 hover:text-navy self-center">
               Use a different email or send a new code

@@ -29,31 +29,65 @@ export type CustomerOrder = {
 export const INSTAGRAM_URL = 'https://www.instagram.com/navilleracharms.ae/';
 export const WHATSAPP_URL = 'https://wa.me/971521437484';
 
-const STATUS: Record<string, { label: string; className: string }> = {
-  pending: { label: 'Received', className: 'bg-sky-tint text-navy' },
-  paid: { label: 'Paid', className: 'bg-sky-tint text-navy' },
-  preparing: { label: 'Being made', className: 'bg-cream text-navy' },
-  shipped: { label: 'On its way', className: 'bg-pastel-blue text-navy' },
-  delivered: { label: 'Delivered', className: 'bg-[#e9f7ee] text-success' },
-  cancelled: { label: 'Cancelled', className: 'bg-pink-soft text-danger' },
+/** The rubber stamp on the receipt. */
+const STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Received', color: '#2d79ba' },
+  paid: { label: 'Paid', color: '#2e7d4f' },
+  preparing: { label: 'Being made', color: '#b7791f' },
+  shipped: { label: 'On its way', color: '#2d79ba' },
+  delivered: { label: 'Delivered', color: '#2e7d4f' },
+  cancelled: { label: 'Cancelled', color: '#d1293d' },
 };
 
 const PAYMENT: Record<string, string> = { ziina: 'Paid online (Ziina)', cod: 'Cash on Delivery', bank: 'Bank Transfer' };
 
-type Line = { name: string; qty: number; file?: string };
+type Line = { name: string; qty: number; file?: string; price?: number };
 
 /** The products in an order, whichever site it came from. */
 function linesOf(order: CustomerOrder): Line[] {
-  const raw = order.items as { charms?: Line[] } | Line[] | null;
+  type Raw = { name?: string; qty?: number; file?: string; unit_price_aed?: number };
+  const raw = order.items as { charms?: Raw[] } | Raw[] | null;
   const list = Array.isArray(raw) ? raw : raw?.charms ?? [];
-  return list.filter(l => l && l.name).map(l => ({ name: l.name, qty: Number(l.qty) || 1, file: l.file }));
+  return list
+    .filter(l => l && l.name)
+    .map(l => ({ name: l.name!, qty: Number(l.qty) || 1, file: l.file, price: l.unit_price_aed === undefined ? undefined : Number(l.unit_price_aed) }));
 }
 
-const aed = (n: number) => `${Number(n).toFixed(2)} AED`;
+const money = (n: number) => Number(n).toFixed(2);
+
+// Zig-zag torn paper edges, top and bottom
+const TORN_EDGES: React.CSSProperties = {
+  WebkitMask: 'conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top/16px 51% repeat-x, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/16px 51% repeat-x',
+  mask: 'conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top/16px 51% repeat-x, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/16px 51% repeat-x',
+};
+
+/** A dashed line across the receipt. */
+const Rule = () => <div className="border-t-2 border-dashed border-navy/20 my-4" />;
+
+/** "Label ........ value" */
+function Row({ label, value, strong, accent }: { label: React.ReactNode; value: React.ReactNode; strong?: boolean; accent?: boolean }) {
+  return (
+    <div className={`flex items-baseline gap-2 ${strong ? 'text-lg font-bold' : 'text-sm'} ${accent ? 'text-success' : 'text-navy'}`}>
+      <span className="flex-shrink min-w-0">{label}</span>
+      <span aria-hidden className="flex-1 border-b-2 border-dotted border-navy/15 translate-y-[-4px] min-w-4" />
+      <span className="font-mono tabular-nums whitespace-nowrap">{value}</span>
+    </div>
+  );
+}
+
+/** A decorative barcode made from the order number. */
+function Barcode({ seed }: { seed: number }) {
+  const bars = Array.from(String(seed).padStart(6, '0').repeat(4), (d, i) => 1 + ((Number(d) + i) % 3));
+  return (
+    <div aria-hidden className="flex items-stretch justify-center gap-[2px] h-10">
+      {bars.map((w, i) => <span key={i} className="bg-navy/80" style={{ width: w * 2, opacity: i % 5 === 4 ? 0.35 : 1 }} />)}
+    </div>
+  );
+}
 
 export function ContactUs({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-sky-tint-light px-4 py-3.5 text-navy">
+    <div className="rounded-2xl bg-white/80 border border-navy/10 px-4 py-3.5 text-navy">
       <p className="font-semibold">{title}</p>
       {children && <p className="text-sm text-muted mt-0.5">{children}</p>}
       <div className="flex flex-wrap gap-2 mt-3">
@@ -80,10 +114,13 @@ export default function OrderCard({ order, onCancel }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const status = STATUS[order.status] ?? { label: order.status, className: 'bg-sky-tint text-navy' };
+  const status = STATUS[order.status] ?? { label: order.status, color: '#5a6b85' };
   const lines = linesOf(order);
-  const date = new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dubai' });
+  const placed = new Date(order.created_at);
+  const date = placed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dubai' });
+  const time = placed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' });
   const finished = order.status === 'cancelled' || order.status === 'delivered';
+  const itemsTotal = Number(order.subtotal_aed);
 
   const cancel = async () => {
     setBusy(true);
@@ -95,64 +132,98 @@ export default function OrderCard({ order, onCancel }: Props) {
   };
 
   return (
-    <article className="rounded-3xl bg-white shadow-[0_6px_24px_rgba(15,42,79,0.08)] border border-navy/5 p-5 sm:p-6 flex flex-col gap-4">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-serif italic text-navy text-2xl leading-tight">Order #{order.order_number}</h2>
-          <p className="text-sm text-muted mt-1">
-            {date} · {order.source === 'builder' ? 'Bracelet builder' : 'Shop'}
-          </p>
+    <article className="flex flex-col gap-3" aria-label={`Order ${order.order_number}`}>
+      {/* ---- The receipt ---- */}
+      <div className="drop-shadow-[0_8px_18px_rgba(15,42,79,0.12)]">
+        <div className="relative bg-white px-6 sm:px-8 pt-9 pb-10" style={TORN_EDGES}>
+          <header className="text-center">
+            <p className="font-serif italic text-navy text-2xl">Navillera</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-muted">Charm Studio</p>
+          </header>
+
+          <Rule />
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-muted">Order</p>
+              <h2 className="font-mono text-navy text-2xl font-bold tabular-nums">#{order.order_number}</h2>
+              <p className="text-sm text-muted font-mono tabular-nums">{date} · {time}</p>
+            </div>
+            {/* Rubber stamp */}
+            <span
+              className="flex-shrink-0 rotate-[-10deg] px-2.5 py-1 rounded-md border-[3px] text-xs sm:text-sm font-bold uppercase tracking-[0.15em] opacity-80 whitespace-nowrap"
+              style={{ color: status.color, borderColor: status.color }}
+            >
+              {status.label}
+            </span>
+          </div>
+
+          <Rule />
+
+          {lines.length > 0 && (
+            <ul className="flex flex-col gap-2.5">
+              {lines.map((line, i) => (
+                <li key={i} className="flex items-center gap-3">
+                  {line.file ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumbUrl(line.file, charmImageUrl(line.file))} alt="" className="w-9 h-9 flex-shrink-0 rounded-md bg-sky-tint-light object-contain p-0.5" loading="lazy" />
+                  ) : (
+                    <span className="w-9 h-9 flex-shrink-0 rounded-md bg-sky-tint-light" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <Row
+                      label={<span className="truncate block">{line.name} <span className="text-muted font-mono">×{line.qty}</span></span>}
+                      value={line.price === undefined ? '' : money(line.price * line.qty)}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <Rule />
+
+          <div className="flex flex-col gap-1.5">
+            <Row label="Items" value={money(itemsTotal)} />
+            {order.discount_aed > 0 && <Row label={`Discount${order.discount_code ? ` (${order.discount_code})` : ''}`} value={`-${money(order.discount_aed)}`} accent />}
+            <Row label="Delivery" value={order.delivery_fee_aed > 0 ? money(order.delivery_fee_aed) : 'FREE'} />
+          </div>
+
+          <div className="border-t-2 border-navy/80 mt-3 pt-3">
+            <Row label="TOTAL" value={`${money(order.total_aed)} AED`} strong />
+          </div>
+
+          <Rule />
+
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm text-navy">
+            {order.bracelet_size && (<><dt className="text-muted">Bracelet</dt><dd>{order.bracelet_size}{order.base_color ? `, ${order.base_color}` : ''}</dd></>)}
+            <dt className="text-muted">Delivery</dt><dd>{order.delivery_text}</dd>
+            <dt className="text-muted">Payment</dt><dd>{PAYMENT[order.payment_method] ?? order.payment_method}</dd>
+            <dt className="text-muted">From</dt><dd>{order.source === 'builder' ? 'Bracelet builder' : 'Shop'}</dd>
+          </dl>
+
+          {order.status === 'cancelled' && (
+            <p className="mt-3 text-sm font-semibold text-danger">
+              Cancelled{order.cancelled_by === 'customer' ? ' by you' : ''}{order.cancelled_at ? ` on ${new Date(order.cancelled_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Dubai' })}` : ''}.
+            </p>
+          )}
+
+          <Rule />
+
+          <Barcode seed={order.order_number} />
+          <p className="mt-2 text-center text-sm text-muted">Thank you for shopping with us ♡</p>
         </div>
-        <span className={`flex-shrink-0 px-3 py-1 rounded-full text-sm font-semibold ${status.className}`}>{status.label}</span>
-      </header>
-
-      {lines.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {lines.map((line, i) => (
-            <li key={i} className="flex items-center gap-3 text-navy">
-              {line.file ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumbUrl(line.file, charmImageUrl(line.file))} alt="" className="w-11 h-11 rounded-lg bg-sky-tint-light object-contain p-1" loading="lazy" />
-              ) : (
-                <span className="w-11 h-11 rounded-lg bg-sky-tint-light" />
-              )}
-              <span className="flex-1 min-w-0 truncate">{line.name}</span>
-              <span className="text-sm text-muted">× {line.qty}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm text-navy">
-        {order.bracelet_size && (<><dt className="text-muted">Bracelet</dt><dd>{order.bracelet_size}{order.base_color ? `, ${order.base_color}` : ''}</dd></>)}
-        <dt className="text-muted">Delivery</dt><dd>{order.delivery_text}</dd>
-        <dt className="text-muted">Payment</dt><dd>{PAYMENT[order.payment_method] ?? order.payment_method}</dd>
-      </dl>
-
-      <div className="border-t border-navy/10 pt-3 flex flex-col gap-1 text-navy">
-        {order.discount_aed > 0 && (
-          <div className="flex justify-between text-sm"><span>Discount{order.discount_code ? ` (${order.discount_code})` : ''}</span><span className="text-success font-semibold">-{aed(order.discount_aed)}</span></div>
-        )}
-        {order.delivery_fee_aed > 0 && (
-          <div className="flex justify-between text-sm"><span>Delivery</span><span>{aed(order.delivery_fee_aed)}</span></div>
-        )}
-        <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{aed(order.total_aed)}</span></div>
       </div>
 
-      {order.status === 'cancelled' && (
-        <p className="text-sm text-muted">
-          Cancelled{order.cancelled_by === 'customer' ? ' by you' : ''}{order.cancelled_at ? ` on ${new Date(order.cancelled_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Dubai' })}` : ''}.
-        </p>
-      )}
-
+      {/* ---- What the customer can do ---- */}
       {order.can_cancel && !confirming && (
-        <button type="button" onClick={() => setConfirming(true)} className="lift self-start min-h-11 px-5 rounded-full border-2 border-danger/70 text-danger font-semibold hover:bg-pink-soft">
-          Cancel order
+        <button type="button" onClick={() => setConfirming(true)} className="lift self-center min-h-11 px-6 rounded-full border-2 border-danger/70 bg-white text-danger font-semibold hover:bg-pink-soft">
+          Cancel order #{order.order_number}
         </button>
       )}
 
       {order.can_cancel && confirming && (
-        <div className="rounded-2xl bg-pink-soft/60 p-4 flex flex-col gap-3">
+        <div className="rounded-2xl bg-white border-2 border-danger/30 p-4 flex flex-col gap-3">
           <p className="font-semibold text-navy">Cancel order #{order.order_number}?</p>
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-navy">
             <span>Why? <span className="font-normal text-muted">(optional)</span></span>

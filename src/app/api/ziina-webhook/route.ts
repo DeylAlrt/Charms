@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPaymentIntent } from '@/lib/ziina';
 import { sendOrderNotificationEmail } from '@/lib/emailNotify';
-import { markEmailSent, markOrderPaid, withOrderNumber } from '@/lib/orderStore';
+import { markEmailSent, markOrderPaid, orderLinkToken, withOrderNumber } from '@/lib/orderStore';
 
 /**
  * Ziina calls this when a payment's status changes.
@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, action: 'already_processed' });
     }
 
-    await sendOrderNotificationEmail(withOrderNumber(order.email_params, order.order_number), order.email_template);
+    const token = await orderLinkToken(order.id).catch(() => null);
+    await sendOrderNotificationEmail(withOrderNumber(order.email_params, order.order_number, token), order.email_template);
     await markEmailSent(order.id);
     return NextResponse.json({ success: true, action: 'order_confirmed', orderNumber: order.order_number });
   } catch (error) {

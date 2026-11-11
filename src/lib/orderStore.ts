@@ -1,5 +1,6 @@
 import { sendOrderNotificationEmail } from './emailNotify';
 import { SUPABASE_URL } from './products';
+import { BUILDER_URL } from './siteUrls';
 
 /**
  * Saving orders in Supabase (server only). Uses SUPABASE_SECRET_KEY from
@@ -119,11 +120,14 @@ export async function markEmailSent(orderId: string): Promise<void> {
  * to the EmailJS template to show it anywhere) and at the top of the notes,
  * which every template already shows.
  */
-export function withOrderNumber(params: Record<string, string>, orderNumber: number | null): Record<string, string> {
+export function withOrderNumber(params: Record<string, string>, orderNumber: number | null, manageToken: string | null = null): Record<string, string> {
   if (orderNumber === null) {
-    return { ...params, order_number: 'not saved', notes: `(Saved by email only — the database was unavailable)\n${params.notes ?? ''}` };
+    return { ...params, order_number: 'not saved', manage_url: '', notes: `(Saved by email only — the database was unavailable)\n${params.notes ?? ''}` };
   }
-  return { ...params, order_number: `#${orderNumber}`, notes: `Order #${orderNumber}\n${params.notes ?? ''}` };
+  // The private "Manage my order" link (also at the top of the notes, which every template shows)
+  const manageUrl = manageToken ? `${BUILDER_URL}/order/${manageToken}` : '';
+  const linkLine = manageUrl ? `View or cancel your order: ${manageUrl}\n` : '';
+  return { ...params, order_number: `#${orderNumber}`, manage_url: manageUrl, notes: `Order #${orderNumber}\n${linkLine}${params.notes ?? ''}` };
 }
 
 /**
@@ -143,7 +147,8 @@ export async function placeOrderNow(record: NewOrder, stockLines: StockLine[]): 
   }
 
   try {
-    await sendOrderNotificationEmail(withOrderNumber(record.email_params, saved?.order_number ?? null), record.email_template);
+    const token = saved ? await orderLinkToken(saved.id).catch(() => null) : null;
+    await sendOrderNotificationEmail(withOrderNumber(record.email_params, saved?.order_number ?? null, token), record.email_template);
   } catch (err) {
     if (!saved) throw err; // neither saved nor emailed: the customer must try again
     console.error(`Order #${saved.order_number} is saved but its email failed:`, err);
@@ -185,4 +190,71 @@ export async function resolveDiscount(code: string, email?: string, phone?: stri
   }
   if (!verdict.ok) throw new DiscountInvalidError(verdict.message || "That code isn't valid.");
   return { code: verdict.code!, percent: Number(verdict.percent_off) / 100 };
+}
+
+// ---------------------------------------------------------------------------
+// Customers' own orders (rules in supabase/migrations/20261113000000_customer_orders.sql)
+// ---------------------------------------------------------------------------
+
+/** What a customer sees of an order. */
+export type CustomerOrder = {
+  id: string;
+  order_number: number;
+  created_at: string;
+  status: string;
+  payment_method: 'ziina' | 'cod' | 'bank';
+  customer_name: string;
+  delivery_text: string;
+  bracelet_size: string | null;
+  base_color: string | null;
+  items: unknown;
+  source: 'builder' | 'shop';
+  discount_code: string | null;
+  subtotal_aed: number;
+  discount_aed: number;
+  delivery_fee_aed: number;
+  total_aed: number;
+  cancelled_at: string | null;
+  cancelled_by: 'customer' | 'shop' | null;
+  can_cancel: boolean;
+};
+
+/** The secret in an order's "Manage my order" link. */
+export function orderLinkToken(orderId: string) {
+  return rpc<string | null>('order_link_token', { p_order_id: orderId });
+}
+
+/** Every order placed with this (signed-in) email, newest first. */
+export function customerOrders(email: string) {
+  return rpc<CustomerOrder[]>('customer_orders', { p_email: email });
+}
+
+/** The order behind a "Manage my order" link, or null. */
+export function orderByToken(token: string) {
+  return rpc<CustomerOrder | null>('order_by_token', { p_token: token });
+}
+
+/** The customer's Cancel button. The order must be theirs: signed-in email, or its link. */
+export function customerCancelOrder(orderId: string, owner: { email?: string; token?: string }, reason: string) {
+  return rpc<{ result: 'cancelled' | 'not_allowed' | 'not_found'; order?: CustomerOrder }>('customer_cancel_order', {
+    p_order_id: orderId,
+    p_email: owner.email ?? null,
+    p_token: owner.token ?? null,
+    p_reason: reason,
+  });
+}
+
+/** Emails the shop that a customer cancelled (with the contact form's EmailJS template). */
+export async function notifyShopOfCancellation(order: CustomerOrder, reason: string, how: string) {
+  await sendOrderNotificationEmail({
+    name: order.customer_name,
+    title: `Order #${order.order_number} cancelled by the customer`,
+    time: new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai' }),
+    email: '',
+    message: [
+      `Order #${order.order_number} (${order.total_aed} AED, Cash on Delivery) was cancelled by the customer ${how}.`,
+      'Its stock and any promo code use were given back automatically.',
+      reason ? `Reason: ${reason}` : 'No reason given.',
+    ].join('\n'),
+  }, 'contact');
 }

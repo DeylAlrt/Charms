@@ -28,11 +28,16 @@ const BAG_ICON = 'https://img.icons8.com/?size=100&id=22167&format=png&color=FFF
 
 type SiteHeaderProps = {
   /** Charms in the cart, shown on the bag's badge (hidden at 0). */
-  cartCount: number;
-  onOpenCart: () => void;
+  cartCount?: number;
+  /** Opens the cart. Without it (account pages), the bag goes to the builder. */
+  onOpenCart?: () => void;
+  /** Which page this is, for the menu's "You're here" mark. */
+  current?: 'builder' | 'account';
 };
 
-export default function SiteHeader({ cartCount, onOpenCart }: SiteHeaderProps) {
+const PERSON_ICON = 'https://img.icons8.com/material-outlined/96/FFFFFF/user--v1.png';
+
+export default function SiteHeader({ cartCount = 0, onOpenCart, current = 'builder' }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
 
   // Close with Escape, like the site
@@ -61,11 +66,22 @@ export default function SiteHeader({ cartCount, onOpenCart }: SiteHeaderProps) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* My orders (sign in with an email code) */}
+          <Link
+            href="/account"
+            aria-label="My orders"
+            title="My orders"
+            className="flex items-center justify-center p-2 transition-transform duration-200 hover:scale-110 focus-visible:scale-110"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={PERSON_ICON} alt="" className="w-7 h-7 md:w-[33px] md:h-[33px]" draggable={false} />
+          </Link>
+
           {/* Cart: the site's bag icon with a pink count badge (Css_Folder/cart.css .cart-badge there) */}
           <button
             type="button"
-            onClick={onOpenCart}
+            onClick={onOpenCart ?? (() => { window.location.href = '/'; })}
             aria-label={cartCount > 0 ? `Shopping cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'Shopping cart'}
             className="relative flex items-center justify-center p-2 transition-transform duration-200 hover:scale-110 focus-visible:scale-110"
           >
@@ -127,7 +143,7 @@ export default function SiteHeader({ cartCount, onOpenCart }: SiteHeaderProps) {
           {/* Build Now — highlighted first item, like the site; this is the current page */}
           <Link
             href="/"
-            aria-current="page"
+            aria-current={current === 'builder' ? 'page' : undefined}
             tabIndex={open ? 0 : -1}
             onClick={() => setOpen(false)}
             className="flex items-center gap-4 px-4 py-3 rounded-xl bg-cream/10 text-cream font-semibold text-[0.95rem] transition-colors duration-200 hover:bg-cream/20"
@@ -135,7 +151,20 @@ export default function SiteHeader({ cartCount, onOpenCart }: SiteHeaderProps) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://img.icons8.com/material-outlined/24/FCF5BE/sparkling.png" alt="" className="w-5 h-5" draggable={false} />
             Build Now
-            <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide bg-cream text-navy px-2 py-0.5 rounded-full">You&apos;re here</span>
+            {current === 'builder' && <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide bg-cream text-navy px-2 py-0.5 rounded-full">You&apos;re here</span>}
+          </Link>
+
+          <Link
+            href="/account"
+            aria-current={current === 'account' ? 'page' : undefined}
+            tabIndex={open ? 0 : -1}
+            onClick={() => setOpen(false)}
+            className="group flex items-center gap-4 px-4 py-3 rounded-xl text-[#d1d5db] font-semibold text-[0.95rem] transition-[color,background-color,translate] duration-200 hover:bg-white/10 hover:text-white hover:translate-x-1.5 focus-visible:bg-white/10 focus-visible:text-white"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={ICON('user--v1')} alt="" className="w-5 h-5 opacity-90 transition-transform duration-200 group-hover:scale-110" draggable={false} />
+            My Orders
+            {current === 'account' && <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide bg-cream text-navy px-2 py-0.5 rounded-full">You&apos;re here</span>}
           </Link>
 
           {[...LINKS, COLLECTION].map(link => (

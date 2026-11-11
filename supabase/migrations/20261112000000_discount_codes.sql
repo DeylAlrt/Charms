@@ -1,12 +1,3 @@
--- Navillera: discount codes checked and counted in the database (Stage 5).
--- Run once in the Supabase dashboard → SQL Editor → New query → paste → Run (after order_saving).
---
--- A code works when it is active, not expired, not used up, and — for
--- first_order_only codes — the customer has no earlier order (same WhatsApp
--- number or email) that went through. A use is counted when the order is
--- placed (Cash on Delivery / Bank Transfer) or paid (Ziina), and given back
--- if the order is cancelled.
-
 
 alter table public.orders
   add column discount_counted boolean not null default false;   -- internal: whether this order counts as a use of its code

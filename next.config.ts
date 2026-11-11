@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // The private order links (/order/<code>) must not leak to other sites through the Referer header
+  async headers() {
+    return [
+      { source: '/order/:path*', headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }, { key: 'Cache-Control', value: 'no-store' }] },
+      { source: '/account', headers: [{ key: 'Cache-Control', value: 'no-store' }] },
+    ];
+  },
   images: {
     remotePatterns: [
       {

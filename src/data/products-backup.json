@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-09T22:24:40.387Z",
+ "savedAt": "2026-11-14T08:20:14.980Z",
  "products": [
   {
    "id": "e02792c2-3b16-4a9d-9c4b-24d8803b15f7",
@@ -57,7 +57,7 @@
    "price_aed": 8.99,
    "image_path": "Animal Links/Animal_Premium_Links (2).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 20
   },
@@ -87,7 +87,7 @@
    "price_aed": 8.99,
    "image_path": "Animal Links/Animal_Premium_Links (4).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 40
   },
@@ -117,7 +117,7 @@
    "price_aed": 8.99,
    "image_path": "Animal Links/Animal_Premium_Links (6).png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 60
   },
@@ -332,36 +332,6 @@
    "sort_order": 10
   },
   {
-   "id": "31468638-95fd-41f0-a639-cfe0724650e1",
-   "name": "Bubbles",
-   "category": "links",
-   "section": "Characters",
-   "builder_category": "Characters",
-   "kind": "charm",
-   "metal": "silver",
-   "price_aed": 8.99,
-   "image_path": "Character Links/Character_Premium_Charms  (2).png",
-   "image_url": null,
-   "sold_out": true,
-   "stock": null,
-   "sort_order": 20
-  },
-  {
-   "id": "62185fad-2084-4735-a190-4baa299f6f48",
-   "name": "Buttercup",
-   "category": "links",
-   "section": "Characters",
-   "builder_category": "Characters",
-   "kind": "charm",
-   "metal": "silver",
-   "price_aed": 8.99,
-   "image_path": "Character Links/Character_Premium_Charms  (3).png",
-   "image_url": null,
-   "sold_out": true,
-   "stock": null,
-   "sort_order": 30
-  },
-  {
    "id": "ceb62497-2050-4464-b290-800a776b0cc9",
    "name": "My Melody",
    "category": "links",
@@ -432,7 +402,7 @@
    "price_aed": 8.99,
    "image_path": "Character Links/Character_Premium_Charms  (8).png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 80
   },
@@ -1017,7 +987,7 @@
    "price_aed": 3,
    "image_path": "Concave Links/Concave_Silver_Links (8).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 80
   },
@@ -1227,7 +1197,7 @@
    "price_aed": 14.99,
    "image_path": "Dangling Links/Dangling_Silver_Links (15).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 140
   },
@@ -1332,7 +1302,7 @@
    "price_aed": 14.99,
    "image_path": "Dangling Links/Dangling_Silver_Links (22).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 210
   },
@@ -1437,7 +1407,7 @@
    "price_aed": 14.99,
    "image_path": "Dangling Links/Dangling_Silver_Links (29).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 280
   },
@@ -1512,7 +1482,7 @@
    "price_aed": 14.99,
    "image_path": "Dangling Links/Dangling_Silver_Links (34).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 330
   },
@@ -1527,7 +1497,7 @@
    "price_aed": 14.99,
    "image_path": "Dangling Links/Dangling_Silver_Links (35).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 340
   },
@@ -1635,21 +1605,6 @@
    "sold_out": false,
    "stock": null,
    "sort_order": 50
-  },
-  {
-   "id": "cc425ad4-e7c7-4d80-8dd5-dc5b6051e951",
-   "name": "Czech Republic",
-   "category": "links",
-   "section": "Flags",
-   "builder_category": "Flags",
-   "kind": "charm",
-   "metal": "silver",
-   "price_aed": 8.99,
-   "image_path": "Flag Links/Flags (6).png",
-   "image_url": null,
-   "sold_out": true,
-   "stock": null,
-   "sort_order": 60
   },
   {
    "id": "c590ee80-c331-49d8-9683-e691ae307781",
@@ -1812,7 +1767,7 @@
    "price_aed": 5,
    "image_path": "Colored Links/Colored_Gold_Links (2).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 20
   },
@@ -1932,7 +1887,7 @@
    "price_aed": 15.99,
    "image_path": "Dangling Links/Dangling_Gold_Links (10).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 60
   },
@@ -1947,7 +1902,7 @@
    "price_aed": 15.99,
    "image_path": "Dangling Links/Dangling_Gold_Links (11).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 70
   },
@@ -2142,7 +2097,7 @@
    "price_aed": 15.99,
    "image_path": "Dangling Links/Dangling_Gold_Links (24).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 200
   },
@@ -2247,7 +2202,7 @@
    "price_aed": 4.5,
    "image_path": "Letter Links/letter_Letters Gold (1).png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 10
   },
@@ -3087,7 +3042,7 @@
    "price_aed": 9.99,
    "image_path": "Premium Links/Premium_Gold_Links (9).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 90
   },
@@ -3102,7 +3057,7 @@
    "price_aed": 9.99,
    "image_path": "Premium Links/Premium_Gold_Links (10).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 100
   },
@@ -3162,7 +3117,7 @@
    "price_aed": 9.99,
    "image_path": "Premium Links/Premium_Gold_Links (14).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 140
   },
@@ -3417,7 +3372,7 @@
    "price_aed": 3.5,
    "image_path": "Letter Links/letter_Letters Silver (1).png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 10
   },
@@ -4032,7 +3987,7 @@
    "price_aed": 2.5,
    "image_path": "Plain Links/Blue_Plain_Charm.png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 40
   },
@@ -4107,7 +4062,7 @@
    "price_aed": 2.5,
    "image_path": "Plain Links/Pink_Plain_Charm.png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 90
   },
@@ -4782,7 +4737,7 @@
    "price_aed": 8.99,
    "image_path": "Premium Links/Premium_Silver_Links (42).png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 420
   },
@@ -5037,7 +4992,7 @@
    "price_aed": 20,
    "image_path": "Chain Links/Chain_Silver_Links (1).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 10
   },
@@ -5052,7 +5007,7 @@
    "price_aed": 20,
    "image_path": "Chain Links/Chain_Silver_Links (2).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 20
   },
@@ -5067,7 +5022,7 @@
    "price_aed": 20,
    "image_path": "Chain Links/Chain_Silver_Links (3).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 30
   },
@@ -5082,7 +5037,7 @@
    "price_aed": 20,
    "image_path": "Chain Links/Chain_Silver_Links (4).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 40
   },
@@ -5097,7 +5052,7 @@
    "price_aed": 20,
    "image_path": "Chain Links/Chain_Silver_Links (5).png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 50
   },
@@ -5127,7 +5082,7 @@
    "price_aed": 30,
    "image_path": "Apple Connector/Silver_Connector.png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 10
   },
@@ -5142,7 +5097,7 @@
    "price_aed": 30,
    "image_path": "Apple Connector/Gold_Connector.png",
    "image_url": null,
-   "sold_out": true,
+   "sold_out": false,
    "stock": null,
    "sort_order": 20
   },
@@ -5187,7 +5142,7 @@
    "price_aed": 65.5,
    "image_path": "Watches/Oval Gold Watch.png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 10
   },
@@ -5217,7 +5172,7 @@
    "price_aed": 55.5,
    "image_path": "Watches/Heart Watch.png",
    "image_url": null,
-   "sold_out": false,
+   "sold_out": true,
    "stock": null,
    "sort_order": 20
   },

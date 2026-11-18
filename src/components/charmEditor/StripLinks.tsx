@@ -407,6 +407,11 @@ export function watchCoveredSpots(bracelet: Charm[]): Set<number> {
   return covered;
 }
 
+/**
+ * The watch face (the photo's own end links cut off), fitted exactly over its
+ * WATCH_FACE_LINKS spots so its lugs meet the plain links either side, and
+ * centred on the row of links. Tapping it calls `onTap`.
+ */
 export function WatchLayer({ bracelet, geometry, onTap }: {
   bracelet: Charm[];
   geometry: SpotGeometry | null;
@@ -428,6 +433,8 @@ export function WatchLayer({ bracelet, geometry, onTap }: {
   };
   const name = bracelet[start].displayName ?? 'Watch';
   const img = (
+    // The whole photo, shifted so only the face shows through this window
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={pic.src}
       alt={name}

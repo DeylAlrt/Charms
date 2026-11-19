@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-11-14T08:20:14.980Z",
+ "savedAt": "2026-11-19T09:40:46.977Z",
  "products": [
   {
    "id": "e02792c2-3b16-4a9d-9c4b-24d8803b15f7",
@@ -3123,7 +3123,7 @@
   },
   {
    "id": "948655d7-8568-407f-97dc-ff0240a62c4b",
-   "name": "Daisy I",
+   "name": "Daisy",
    "category": "links",
    "section": "Gold Premium Charms",
    "builder_category": "Premium Charms",
@@ -3135,21 +3135,6 @@
    "sold_out": false,
    "stock": null,
    "sort_order": 150
-  },
-  {
-   "id": "4e15d75c-ea7e-49a1-a0c5-715fe3412458",
-   "name": "Daisy II",
-   "category": "links",
-   "section": "Gold Premium Charms",
-   "builder_category": "Premium Charms",
-   "kind": "charm",
-   "metal": "gold",
-   "price_aed": 9.99,
-   "image_path": "Premium Links/Premium_Gold_Links (16).png",
-   "image_url": null,
-   "sold_out": false,
-   "stock": null,
-   "sort_order": 160
   },
   {
    "id": "9bfd6335-9a65-42fb-9be6-77c6e51df729",
